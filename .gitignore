@@ -1,6 +1,6 @@
 build/
 sdkconfig
 sdkconfig.old
-.cproject/
-.project/
+.cproject
+.project
 .settings/
