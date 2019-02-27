@@ -16,6 +16,7 @@ void app_main(){
 	gpio_set_direction(4, GPIO_MODE_OUTPUT);
 	nvs_flash_init();
 	start_console();
+	wifi_get_data();
 	start_ib_reader();
 	while(1){
 		gpio_set_level(4, 1);

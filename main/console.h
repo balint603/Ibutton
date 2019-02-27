@@ -13,3 +13,4 @@
 #endif /* MAIN_CONSOLE_H_ */
 
 void start_console();
+void wifi_get_data();

@@ -12,6 +12,7 @@ extern "C" {
 
 // Register WiFi functions
 void register_wifi();
+esp_err_t wifi_restore();
 
 #ifdef __cplusplus
 }

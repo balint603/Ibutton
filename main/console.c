@@ -20,6 +20,16 @@
 
 #include "console.h"
 
+void wifi_get_data(){
+	esp_err_t err = wifi_restore();
+	if(ESP_OK != err){
+		ESP_LOGE(__func__,"Restore WiFi settings error. Code:'%x'\n",err);
+	}
+	else if(ESP_ERR_NVS_NOT_FOUND == err || ESP_ERR_NVS_INVALID_HANDLE == err){
+		ESP_LOGI(__func__,"WiFi settings not found ");
+	}
+}
+
 TaskFunction_t cmd_task(){
     /* Prompt to be printed before each line.
      * This can be customized, made dynamic, etc.
