@@ -1,10 +1,3 @@
-/* Console example — WiFi commands
-   This example code is in the Public Domain (or CC0 licensed, at your option.)
-   Unless required by applicable law or agreed to in writing, this
-   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-   CONDITIONS OF ANY KIND, either express or implied.
-*/
-
 #include <stdio.h>
 #include <string.h>
 #include "esp_log.h"
@@ -26,10 +19,20 @@
 const int DEFAULT_TIMEOUT_MS = 8000;
 
 static EventGroupHandle_t wifi_event_group;
+
 const int CONNECTED_BIT = BIT0;
 
 const char key_wifi_settings[] = "wifi_settings";
 const char namespace_wifi[] = "wifi_nvs";
+
+/** Arguments used by 'join' function */
+static struct {
+    struct arg_int *timeout;
+    struct arg_str *ssid;
+    struct arg_str *password;
+    struct arg_end *end;
+} join_args;
+
 
 static esp_err_t event_handler(void *ctx, system_event_t *event)
 {
@@ -69,8 +72,10 @@ static void initialise_wifi(void)
     ESP_ERROR_CHECK( esp_wifi_start() );
     initialized = true;
 }
-
-esp_err_t wifi_save(const wifi_config_t wifi_config){
+/**\brief Saves the actual config of the WiFi.
+ * \ret NVS_ERR_NVS* when error occurs.
+ * */
+static esp_err_t wifi_save(const wifi_config_t wifi_config){
 	nvs_handle handler;
 	esp_err_t err;
 	uint32_t size = sizeof(wifi_config_t);
@@ -87,13 +92,16 @@ esp_err_t wifi_save(const wifi_config_t wifi_config){
 	nvs_close(handler);
 	return ESP_OK;
 }
-
+/** \brief Restors the WiFi config from flash.
+ *  \return ESP_ERR_NVS* when error occurs.
+ * */
 esp_err_t wifi_restore(){
 	nvs_handle handler;
 	wifi_config_t wifi_config;
 	uint32_t size = sizeof(wifi_config);
 	esp_err_t err = nvs_open(namespace_wifi, NVS_READONLY, &handler);
 	int timeout_ms = 10000;
+
 	if(ESP_OK == err){
 		err = nvs_get_blob(handler, key_wifi_settings, &wifi_config, &size);
 		if(ESP_OK != err)
@@ -124,7 +132,10 @@ esp_err_t wifi_restore(){
     }
     return ESP_OK;
 }
-
+/** \brief Make a WiFi connection with the parameters.
+ *  \return 0 connection timed out.
+ *  \return 1 properly connected.
+ * */
 static int wifi_join(const char* ssid, const char* pass, int timeout_ms)
 {
 	esp_err_t err;
@@ -151,14 +162,10 @@ static int wifi_join(const char* ssid, const char* pass, int timeout_ms)
     return (bits & CONNECTED_BIT) != 0;
 }
 
-/** Arguments used by 'join' function */
-static struct {
-    struct arg_int *timeout;
-    struct arg_str *ssid;
-    struct arg_str *password;
-    struct arg_end *end;
-} join_args;
-
+/** \brief Makes the console arguments to WiFi parameters.
+ *  \return 0 WiFi connected.
+ *  \return 1 WiFi connection error occurs.
+ * */
 static int connect(int argc, char** argv)
 {
 	esp_err_t err;

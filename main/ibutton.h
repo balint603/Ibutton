@@ -8,15 +8,17 @@
 #ifndef MAIN_IBUTTON_H_
 #define MAIN_IBUTTON_H_
 
-#define DATA_GPIO_NUM 5
-
 
 typedef unsigned long ib_code_t;
+typedef int ib_ret_t;
 
+#define IB_OK 0
+#define IB_FAM_ERR 1
+#define IB_CRC_ERR 2
 
-void ib_init();
+void onewire_init(gpio_num_t data_pin);
 int ib_presence();
-int ib_read_code(ib_code_t *ib_code);
+ib_ret_t ib_read_code(ib_code_t *ib_code);
 
 
 

@@ -13,6 +13,8 @@
 #include "rom/ets_sys.h"
 #include "ibutton.h"
 
+gpio_num_t DATA_GPIO_NUM;
+
 #define GET_LEVEL (gpio_get_level(DATA_GPIO_NUM))
 #define PULL (gpio_set_direction(DATA_GPIO_NUM, GPIO_MODE_OUTPUT))
 #define RELEASE (gpio_set_direction(DATA_GPIO_NUM, GPIO_MODE_INPUT))
@@ -48,7 +50,9 @@ static uint8_t crc8_check(uint8_t *data, uint8_t length){
 		crc = CRC8_TABLE[crc ^ data[i]];
 	return crc;
 }
-
+/** \brief Send a byte out.
+ *
+ * */
 static void send_byte(uint8_t data){
 	for(int i = 8; i > 0; i--){
 		if(data & 0x01){
@@ -67,6 +71,10 @@ static void send_byte(uint8_t data){
 	}
 }
 
+/** \brief Reads a byte.
+ *  Must called just after the command byte has been sent out.
+ *  \ret ib_code_t ibutton code.
+ * */
 static uint8_t read_byte(){
 	uint8_t byte = 0;
 	for(int i = 8; i > 0; i--){
@@ -105,6 +113,7 @@ int ib_presence(){
 	return line_level_tmp ? 0 : 1;
 }
 
+/** \brief uint8_t array to long conversion. * */
 static ib_code_t bytes_to_code(uint8_t *data){
 	ib_code_t code_val = 0;
 	if(!data)
@@ -120,11 +129,11 @@ static ib_code_t bytes_to_code(uint8_t *data){
  * Read the iButton ROM.
  * This function must be called, when an iButton has just been connected to the reader.
  * \param ib_code serial number of iButton device.
- * \ret 0 when the computed CRC equals the MSB from the ROM data and LSB equals 01h (iButton family code).
- * \ret 1 when CRC error.
- * \ret 2 when the family code does not match.
+ * \ret IB_OK when the computed CRC equals the MSB from the ROM data and LSB equals 01h (iButton family code).
+ * \ret IB_CRC_ERR when CRC error.
+ * \ret IB_FAM_ERR when the family code does not match.
  * */
-int ib_read_code(ib_code_t *ib_code){
+ib_ret_t ib_read_code(ib_code_t *ib_code){
 	uint8_t crc = 0;
 	uint8_t data[8];
 
@@ -137,16 +146,17 @@ int ib_read_code(ib_code_t *ib_code){
 	portENABLE_INTERRUPTS();
 
 	if(data[0] != FAMILY_CODE)
-		return 2;
+		return IB_FAM_ERR;
 	if(crc8_check(data,8))
-		return 1;
+		return IB_CRC_ERR;
 
 	*ib_code = bytes_to_code(data);
-	return 0;
+	return IB_OK;
 }
 
-void ib_init(){
-	gpio_pad_select_gpio(DATA_GPIO_NUM);
-	gpio_set_direction(DATA_GPIO_NUM, GPIO_MODE_INPUT);
-	gpio_set_level(DATA_GPIO_NUM, 0);
+void onewire_init(gpio_num_t data_pin){
+	gpio_pad_select_gpio(data_pin);
+	gpio_set_direction(data_pin, GPIO_MODE_INPUT);
+	gpio_set_level(data_pin, 0);
+	DATA_GPIO_NUM = data_pin;
 }

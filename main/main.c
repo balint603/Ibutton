@@ -10,6 +10,7 @@
 
 #include "console.h"
 #include "ib_reader.h"
+#include "mqtt_app.h"
 
 void app_main(){
 	gpio_pad_select_gpio(4);
@@ -18,6 +19,7 @@ void app_main(){
 	start_console();
 	wifi_get_data();
 	start_ib_reader();
+	//mqtt_app_start();
 	while(1){
 		gpio_set_level(4, 1);
 		vTaskDelay(20 / portTICK_RATE_MS);

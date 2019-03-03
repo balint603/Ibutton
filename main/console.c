@@ -20,6 +20,9 @@
 
 #include "console.h"
 
+/**\brief Try to read the saved WiFi configuration from the flash.
+ * \return ESP_ERR_NVS* when error occurs.
+ * */
 void wifi_get_data(){
 	esp_err_t err = wifi_restore();
 	if(ESP_OK != err){
@@ -31,9 +34,7 @@ void wifi_get_data(){
 }
 
 TaskFunction_t cmd_task(){
-    /* Prompt to be printed before each line.
-     * This can be customized, made dynamic, etc.
-     */
+
     const char* prompt = LOG_COLOR_I "esp32> " LOG_RESET_COLOR;
 
     printf("\n"

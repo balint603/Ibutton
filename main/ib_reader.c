@@ -6,6 +6,8 @@
  */
 
 #include <stdio.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/timers.h"
 #include "esp_system.h"
 #include "esp_log.h"
 #include "esp_err.h"
@@ -13,34 +15,383 @@
 #include "ibutton.h"
 #include "ib_reader.h"
 
-TaskFunction_t ibutton_read_task(){
+typedef enum inputs {
+    input_touched,
+    input_su_touched,
+	input_invalid_touched,
+    input_button,
+	input_tout,
+} inputs_t;
+
+typedef enum infos {
+	blink_green,
+	blink_red,
+	blink_both,
+	blink_both2,
+	blink_none,
+} infos_t;
+
+typedef struct ib_data{
+	ib_code_t su_key;
+	unsigned int opening_time;
+	unsigned int mode;
+	unsigned int button_enable;
+} ib_data_t;
+
+#define MODE_NORMAL 0
+#define MODE_BISTABLE 255
+#define MODE_BISTABLE_SAME_KEY 511
+
+typedef void ( *p_state_handler )(inputs_t input);
+
+typedef struct ib_handles{
+	p_state_handler fsm_state;
+	QueueHandle_t input_q;
+	TaskHandle_t reader_t;
+	TaskHandle_t info_t;
+	QueueHandle_t info_q;
+	TimerHandle_t timeout_tim;
+} ib_handlers;
+
+
+volatile uint32_t initialized;
+ib_data_t g_data = {
+		.opening_time = STANDARD_OPENING_TIME
+};
+ib_handlers g_handlers;
+
+volatile BaseType_t g_enable_reader = pdTRUE;
+
+#define ON GPIO_MODE_INPUT
+#define OFF GPIO_MODE_OUTPUT
+#define LED_RED(x)\
+	gpio_set_direction(PIN_RED,x);
+#define LED_GREEN(x)\
+	gpio_set_direction(PIN_GREEN,x);
+
+#define RELAY_OPEN gpio_set_level(PIN_RELAY,1);
+#define RELAY_CLOSE gpio_set_level(PIN_RELAY,0);
+
+
+#define INFO_QUEUE_LENGTH 5
+#define INFO_QUEUE_ITEM_SIZE sizeof(infos_t)
+#define INPUT_QUEUE_LENGTH 1
+#define INPUT_QUEUE_ITEM_SIZE sizeof(inputs_t)
+
+#define TIMEOUT_BASIC_MS 30000
+
+static void check_touch(inputs_t input);
+
+static void timeout_callback(TimerHandle_t timer){
+	inputs_t input = input_tout;
+	xQueueOverwrite(g_handlers.input_q,&input);
+}
+
+static void reader_enable_callback(TimerHandle_t timer){
+	g_enable_reader = pdTRUE;
+}
+
+static int is_su_mode_enable(){
+	return gpio_get_level(PIN_SU_ENABLE);
+}
+
+static void key_touched_event(ib_code_t code){
+	inputs_t input;
+// todo search from memory and make decision
+	if(448532016 == code)
+		input = input_su_touched;
+	else if(448522168 == code)
+		input = input_touched;
+	else
+		input = input_invalid_touched;
+	xQueueSend(g_handlers.input_q,&input,0);
+}
+
+
+/** \brief Task function of ibutton reader module.
+ * */
+TaskFunction_t ib_reader_task(void *pvParam){
+	QueueHandle_t info_queue = (QueueHandle_t) pvParam;
+
+	g_handlers.fsm_state = check_touch;
+
+	TimerHandle_t reader_tim = xTimerCreate("reader timer",
+			READER_DISABLE_TICKS, pdFALSE, 0, reader_enable_callback);
+	g_handlers.timeout_tim = xTimerCreate("timeout alarm",
+				30000, pdFALSE, 0, timeout_callback);
+
+
 	ib_code_t ibutton_code;
+	inputs_t input;
+	inputs_t input_incoming;
+	int button_prev_state = 0;
+
+	LED_RED(OFF);
+
 	while(1){
-		if(ib_presence()){
-			switch (ib_read_code(&ibutton_code)) {
-				case 0:
-					printf("Code: %lu\n",ibutton_code);
-					break;
-				case 1:
-					printf("Family code err\n");
-					break;
-				case 2:
-					printf("CRC err\n");
-					break;
-				default:
-					break;
+		if( !gpio_get_level(PIN_BUTTON)){
+			if(!button_prev_state){
+				g_handlers.fsm_state(input_button);
+				printf("Button pressed\n");
 			}
-			vTaskDelay(100 / portTICK_RATE_MS );
+			button_prev_state = 1;
 		}
-		vTaskDelay(10 / portTICK_RATE_MS );
+		else if(ib_presence()){
+			if(pdTRUE == g_enable_reader){
+				switch (ib_read_code(&ibutton_code)) {
+					case IB_OK:
+						printf("READ: Code: %lu\n",ibutton_code);
+						if(pdPASS == xTimerReset(reader_tim,0))
+							g_enable_reader = pdFALSE;
+							key_touched_event(ibutton_code);
+						break;
+					case IB_FAM_ERR:
+						printf("READ: Family code err\n");
+						break;
+					case IB_CRC_ERR:
+						printf("READ: CRC err\n");
+						break;
+					default:
+						break;
+				}
+			}
+			if(pdFAIL == xTimerReset(reader_tim,0))
+				g_enable_reader = pdTRUE;
+		}
+		else
+			button_prev_state = 0;
+
+		if(pdTRUE == xQueueReceive(g_handlers.input_q, &input_incoming, 10 / portTICK_RATE_MS) )
+			g_handlers.fsm_state(input_incoming);
 	}
 }
 
-void start_ib_reader(){
-	TaskHandle_t ib_read_handler;
-	const char task_name[] = "ibutton_reader task";
-	if(xTaskCreate(ibutton_read_task, task_name, 4096,
-			0, 5, &ib_read_handler) != pdPASS){
-		printf("%s cannot be created.\n", task_name);
+TaskFunction_t ib_info_task(void *pvParam){
+	QueueHandle_t info_queue = (QueueHandle_t) pvParam;
+	infos_t info_state = blink_none;
+	int delay_ms = 500;
+	gpio_mode_t led_out_state = GPIO_MODE_OUTPUT;
+	while(1){
+		if(blink_none == info_state){
+			if(pdPASS == xQueueReceive(info_queue,&info_state,portMAX_DELAY)){
+				led_out_state = GPIO_MODE_OUTPUT;
+				printf("infoqueue got\n");
+			}
+		}
+		else{
+			if(pdPASS == xQueueReceive(info_queue,&info_state,delay_ms / portTICK_RATE_MS)){
+				led_out_state = GPIO_MODE_OUTPUT;
+				printf("infoqueue got during blinking\n");
+			}
+			printf("time to blink\n");
+		}
+		switch(info_state) {
+			case blink_both:
+				LED_RED(led_out_state);
+				LED_GREEN(led_out_state);
+				delay_ms = 500;
+				break;
+			case blink_green:
+				printf("blink it!\n");
+				LED_GREEN(led_out_state);
+				delay_ms = 500;
+				break;
+			case blink_red:
+				LED_RED(led_out_state);
+				delay_ms = 500;
+				break;
+			case blink_both2:
+				LED_GREEN(led_out_state);
+				if(led_out_state == ON){
+					LED_RED(OFF);
+				}
+				else{
+					LED_RED(ON);
+				}
+				delay_ms = 250;
+				break;
+			default:
+				break;
+		}
+		led_out_state = (led_out_state == ON) ? OFF : ON;
 	}
 }
+
+void create_tasks(){
+
+	g_handlers.info_q = xQueueCreate(INFO_QUEUE_LENGTH,INFO_QUEUE_ITEM_SIZE);
+	if(g_handlers.info_q == 0)
+		ESP_LOGE(__func__,"info_q queue create err");
+
+	g_handlers.input_q = xQueueCreate(INPUT_QUEUE_LENGTH,INPUT_QUEUE_ITEM_SIZE);
+		if(g_handlers.info_q == 0)
+			ESP_LOGE(__func__,"input_q queue create err");
+
+	const char task_name[] = "ibutton reader task";
+	if(xTaskCreate(ib_reader_task, task_name, 4096,
+			(void*)g_handlers.info_q, 5, &g_handlers.reader_t) != pdPASS){
+		ESP_LOGE(__func__,"'%s' cannot be created",task_name);
+	}
+	const char task2_name[] = "ibutton info task";
+	if(xTaskCreate(ib_info_task, task2_name, 4096,
+			(void*)g_handlers.info_q, 5, &g_handlers.info_t) != pdPASS){
+		ESP_LOGE(__func__,"'%s' cannot be created",task2_name);
+	}
+}
+
+/** \brief Starts an iButton reader module.
+ *
+ * */
+void start_ib_reader(){
+	if(initialized){
+		ESP_LOGW(__func__, "Already initialized");
+		return;
+	}
+
+	gpio_pad_select_gpio(PIN_BUTTON);
+	gpio_set_level(PIN_BUTTON, 1);
+	gpio_set_direction(PIN_BUTTON, GPIO_MODE_INPUT);
+	gpio_set_pull_mode(PIN_BUTTON, GPIO_PULLUP_ONLY);
+
+	gpio_pad_select_gpio(PIN_RELAY);
+	gpio_set_direction(PIN_RELAY, GPIO_MODE_OUTPUT);
+	gpio_set_level(PIN_RELAY, 0);
+
+	gpio_pad_select_gpio(PIN_GREEN);
+	gpio_set_direction(PIN_GREEN, GPIO_MODE_INPUT);
+	gpio_set_level(PIN_GREEN, 0);
+
+	gpio_pad_select_gpio(PIN_RED);
+	gpio_set_direction(PIN_RED, GPIO_MODE_INPUT);
+	gpio_set_level(PIN_RED, 0);
+
+	gpio_pad_select_gpio(PIN_SU_ENABLE);
+	gpio_set_level(PIN_SU_ENABLE, 1);
+	gpio_set_direction(PIN_SU_ENABLE, GPIO_MODE_INPUT);
+	gpio_set_pull_mode(PIN_SU_ENABLE, GPIO_PULLUP_ONLY);
+
+	onewire_init(PIN_DATA);
+	create_tasks();
+	initialized = 1;
+}
+
+/** Helper functions of State functions */
+
+static void timeout_set(int ms){
+	xTimerStop(g_handlers.timeout_tim, 0);
+	xTimerChangePeriod(g_handlers.timeout_tim,
+						ms / portTICK_RATE_MS,
+						0);
+	xTimerStart(g_handlers.timeout_tim, 0);
+}
+
+/** STATE FUNCTIONS _________________________________________________________________________*/
+
+static void switch_state_to( p_state_handler new_state ){
+	g_handlers.fsm_state = new_state;
+}
+
+static void send_info(infos_t info){
+	xQueueSend(g_handlers.info_q,&info,0);
+	timeout_set(TIMEOUT_BASIC_MS);
+}
+
+static void access_allow(inputs_t input){
+	switch (input) {
+		case input_tout:
+			LED_GREEN(ON);
+			RELAY_CLOSE;
+			infos_t info = blink_none;
+			send_info(info);
+			g_handlers.fsm_state = check_touch;
+			break;
+		default:
+			break;
+	}
+}
+
+static void su_mode(inputs_t input){
+	switch(input){
+		case input_tout:
+			send_info(blink_none);
+			switch_state_to(check_touch);
+			break;
+		default:
+			break;
+	}
+}
+
+static void check_touch(inputs_t input){
+	switch(input){
+		case input_su_touched:
+			if(is_su_mode_enable()){
+				send_info(blink_green);
+				switch_state_to(su_mode);
+				printf("Touched su\n");
+				break;
+			}
+			else{
+				input = input_touched;
+				// OPEN IT LIKE A NORMAL KEY
+			}
+			/* no break */
+		case input_touched:
+			LED_GREEN(OFF);
+			RELAY_OPEN;
+			switch (g_data.mode) {
+				case MODE_BISTABLE:
+					// todo
+					break;
+				case MODE_BISTABLE_SAME_KEY:
+					// todo
+					break;
+				default:
+					timeout_set(g_data.opening_time);
+					g_handlers.fsm_state = access_allow;
+					break;
+			}
+			printf("Touched\n");
+			break;
+		case input_button:
+			LED_GREEN(OFF);
+			RELAY_OPEN;
+			timeout_set(g_data.opening_time);
+			g_handlers.fsm_state = access_allow;
+			break;
+		default:
+			break;
+	}
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
