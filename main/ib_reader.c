@@ -3,6 +3,18 @@
  *
  *  Created on: Feb 26, 2019
  *      Author: root
+ *
+ *  This module implements the access control functions.
+ *  It is state a machine which has more inputs:
+ *  	- iButton reader,
+ *  	- button,
+ *  	- timeouts.
+ *  Two tasks:
+ *  	1.: reads the button state, and read the iButton data.
+ *  	2.: informs the user of the state machine, example: blink leds
+ * 	Uses
+ * 		- software timers to create timeouts,
+ * 		- queues to perform communications between the input generators and the state machine,
  */
 
 #include <stdio.h>
@@ -15,6 +27,7 @@
 #include "ibutton.h"
 #include "ib_reader.h"
 
+/** Input types of the state machine */
 typedef enum inputs {
     input_touched,
     input_su_touched,
@@ -23,6 +36,7 @@ typedef enum inputs {
 	input_tout,
 } inputs_t;
 
+/** Type of indicating the state of the machine */
 typedef enum infos {
 	blink_green,
 	blink_red,
@@ -31,6 +45,7 @@ typedef enum infos {
 	blink_none,
 } infos_t;
 
+/** Configuration settings */
 typedef struct ib_data{
 	ib_code_t su_key;
 	unsigned int opening_time;
@@ -38,12 +53,15 @@ typedef struct ib_data{
 	unsigned int button_enable;
 } ib_data_t;
 
+/** Operation mode types */
 #define MODE_NORMAL 0
 #define MODE_BISTABLE 255
 #define MODE_BISTABLE_SAME_KEY 511
 
+/** Holds the current state */
 typedef void ( *p_state_handler )(inputs_t input);
 
+/** FreeRTOS handlers */
 typedef struct ib_handles{
 	p_state_handler fsm_state;
 	QueueHandle_t input_q;
@@ -52,15 +70,6 @@ typedef struct ib_handles{
 	QueueHandle_t info_q;
 	TimerHandle_t timeout_tim;
 } ib_handlers;
-
-
-volatile uint32_t initialized;
-ib_data_t g_data = {
-		.opening_time = STANDARD_OPENING_TIME
-};
-ib_handlers g_handlers;
-
-volatile BaseType_t g_enable_reader = pdTRUE;
 
 #define ON GPIO_MODE_INPUT
 #define OFF GPIO_MODE_OUTPUT
@@ -78,15 +87,39 @@ volatile BaseType_t g_enable_reader = pdTRUE;
 #define INPUT_QUEUE_LENGTH 1
 #define INPUT_QUEUE_ITEM_SIZE sizeof(inputs_t)
 
+/** Basic time in ms */
 #define TIMEOUT_BASIC_MS 30000
 
+/** called: state functions.
+ *  This functions performs several operations,
+ *  they are the states of the machine.
+ *  */
 static void check_touch(inputs_t input);
 
+
+
+volatile uint32_t initialized;
+
+ib_data_t g_data = {
+		.opening_time = STANDARD_OPENING_TIME
+};
+ib_handlers g_handlers;
+
+volatile BaseType_t g_enable_reader = pdTRUE;
+
+
+
+/**
+ * timeout_tim software timer callback function.
+ * */
 static void timeout_callback(TimerHandle_t timer){
 	inputs_t input = input_tout;
 	xQueueOverwrite(g_handlers.input_q,&input);
 }
 
+/**
+ * Called by the reader disable timer.
+ * */
 static void reader_enable_callback(TimerHandle_t timer){
 	g_enable_reader = pdTRUE;
 }
@@ -95,6 +128,11 @@ static int is_su_mode_enable(){
 	return gpio_get_level(PIN_SU_ENABLE);
 }
 
+/**
+ * \brief Called when a key has been touched.
+ *  It looks up the key in the database
+ * and makes a decision which input must be generated.
+ * */
 static void key_touched_event(ib_code_t code){
 	inputs_t input;
 // todo search from memory and make decision
@@ -108,10 +146,15 @@ static void key_touched_event(ib_code_t code){
 }
 
 
-/** \brief Task function of ibutton reader module.
+/** \brief Task function of iButton reader module.
+ *  Checks the button state then reads the iButton reader.
+ *  It ensures that the touched iButton will generate an input which type
+ * depends on the key whether has a right to access or not.
+ *  After a successful key reading, the reader will be disabled for a defined time
+ * and that time will be recalculated while the key is still connected.
+ * To enable the reader again, the key has to disconnect for the defined time.
  * */
 TaskFunction_t ib_reader_task(void *pvParam){
-	QueueHandle_t info_queue = (QueueHandle_t) pvParam;
 
 	g_handlers.fsm_state = check_touch;
 
@@ -165,21 +208,22 @@ TaskFunction_t ib_reader_task(void *pvParam){
 			g_handlers.fsm_state(input_incoming);
 	}
 }
-
+/** \brief Outputs information for users.
+ * The task waits in the blocked state until incomes a need to change information output.
+ *  */
 TaskFunction_t ib_info_task(void *pvParam){
-	QueueHandle_t info_queue = (QueueHandle_t) pvParam;
 	infos_t info_state = blink_none;
 	int delay_ms = 500;
 	gpio_mode_t led_out_state = GPIO_MODE_OUTPUT;
 	while(1){
 		if(blink_none == info_state){
-			if(pdPASS == xQueueReceive(info_queue,&info_state,portMAX_DELAY)){
+			if(pdPASS == xQueueReceive(g_handlers.info_q,&info_state,portMAX_DELAY)){
 				led_out_state = GPIO_MODE_OUTPUT;
 				printf("infoqueue got\n");
 			}
 		}
 		else{
-			if(pdPASS == xQueueReceive(info_queue,&info_state,delay_ms / portTICK_RATE_MS)){
+			if(pdPASS == xQueueReceive(g_handlers.info_q,&info_state,delay_ms / portTICK_RATE_MS)){
 				led_out_state = GPIO_MODE_OUTPUT;
 				printf("infoqueue got during blinking\n");
 			}
@@ -217,7 +261,7 @@ TaskFunction_t ib_info_task(void *pvParam){
 	}
 }
 
-void create_tasks(){
+static void create_tasks(){
 
 	g_handlers.info_q = xQueueCreate(INFO_QUEUE_LENGTH,INFO_QUEUE_ITEM_SIZE);
 	if(g_handlers.info_q == 0)
@@ -229,25 +273,17 @@ void create_tasks(){
 
 	const char task_name[] = "ibutton reader task";
 	if(xTaskCreate(ib_reader_task, task_name, 4096,
-			(void*)g_handlers.info_q, 5, &g_handlers.reader_t) != pdPASS){
+			0, 5, &g_handlers.reader_t) != pdPASS){
 		ESP_LOGE(__func__,"'%s' cannot be created",task_name);
 	}
 	const char task2_name[] = "ibutton info task";
 	if(xTaskCreate(ib_info_task, task2_name, 4096,
-			(void*)g_handlers.info_q, 5, &g_handlers.info_t) != pdPASS){
+			0, 5, &g_handlers.info_t) != pdPASS){
 		ESP_LOGE(__func__,"'%s' cannot be created",task2_name);
 	}
 }
 
-/** \brief Starts an iButton reader module.
- *
- * */
-void start_ib_reader(){
-	if(initialized){
-		ESP_LOGW(__func__, "Already initialized");
-		return;
-	}
-
+static void gpio_set(){
 	gpio_pad_select_gpio(PIN_BUTTON);
 	gpio_set_level(PIN_BUTTON, 1);
 	gpio_set_direction(PIN_BUTTON, GPIO_MODE_INPUT);
@@ -269,7 +305,18 @@ void start_ib_reader(){
 	gpio_set_level(PIN_SU_ENABLE, 1);
 	gpio_set_direction(PIN_SU_ENABLE, GPIO_MODE_INPUT);
 	gpio_set_pull_mode(PIN_SU_ENABLE, GPIO_PULLUP_ONLY);
+}
 
+/** \brief Starts an iButton reader module.
+ *
+ * */
+void start_ib_reader(){
+	if(initialized){
+		ESP_LOGW(__func__, "Already initialized");
+		return;
+	}
+
+	gpio_set();
 	onewire_init(PIN_DATA);
 	create_tasks();
 	initialized = 1;
