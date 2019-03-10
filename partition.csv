@@ -3,4 +3,5 @@
 nvs,        data,       nvs,        0x9000,     0x6000,
 phy_init,   data,       phy,        0xf000,     0x1000,
 factory,    app,        factory,    0x10000,    1M,
-code_nvs,   0x40,       nvs,        0x20000,    200K,
+code_nvs1,  0x40,       ,           ,           512K,
+code_nvs2,  0x40,       ,           ,           512K,

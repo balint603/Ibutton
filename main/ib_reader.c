@@ -17,6 +17,8 @@
  * 		- queues to perform communications between the input generators and the state machine,
  */
 
+#include "../main/ib_reader.h"
+
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/timers.h"
@@ -25,7 +27,6 @@
 #include "esp_err.h"
 #include "driver/uart.h"
 #include "ibutton.h"
-#include "ib_reader.h"
 
 /** Input types of the state machine */
 typedef enum inputs {

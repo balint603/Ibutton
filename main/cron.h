@@ -6,8 +6,6 @@
 #include <sys/types.h>
 #include <time.h>
 
-#include "config.h"
-
 /*
  * eventmask is
  * 60 bits for minute,
@@ -20,11 +18,11 @@
 #define CBIT(t)		(1 << (t))
 
 typedef struct {
-    DWORD minutes[2];	/* 60 bits worth */
-    DWORD hours;	/* 24 bits worth */
-    DWORD mday;		/* 31 bits worth */
-    WORD  wday;		/*  7 bits worth */
-    WORD  month;	/* 12 bits worth */
+	unsigned long minutes[2];	/* 60 bits worth 16B */
+    unsigned long hours;	/* 24 bits worth 8B */
+    unsigned long mday;		/* 31 bits worth 8B */
+    unsigned int  wday;		/*  7 bits worth 4B */
+    unsigned int  month;	/* 12 bits worth 4B */
 } Evmask;
 
 
@@ -49,30 +47,15 @@ typedef struct {
 } crontab;
 
 
-int readcrontab(crontab *, FILE*);
-void zerocrontab(crontab *);
-void tmtoEvmask(struct tm *,int,Evmask*);
-time_t mtime(char *);
-void runjob(crontab *, cron *);
+int check_domain(Evmask *t, Evmask *m);
 
-#define EXPAND(t,s,n)	do { \
-			    int _n = (n); \
-			    int _s = (s); \
-			    if (_n >= _s) { \
-				_s = _n ? (_n * 10) : 200; \
-				t = xrealloc(t, _s, sizeof t[0]); \
-			    } \
-			} while(0)
+char *getdatespec(char *cron_s, Evmask *time_mask);
 
-void *xrealloc(void*,int,int);
-char *fgetlol(FILE*);
+void tmtoEvmask(struct tm *, Evmask*);
+
 char *firstnonblank(char*);
 void error(char*,...);
 void fatal(char*,...);
-void info(char*,...);
-char *jobenv(crontab*,char*);
-void xchdir(char*);
-
 
 extern int interactive;
 extern int lineno;

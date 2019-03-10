@@ -22,6 +22,8 @@
 #include "cmd_system.h"
 #include "sdkconfig.h"
 
+#include "codeflash.h"
+
 #ifdef CONFIG_FREERTOS_USE_STATS_FORMATTING_FUNCTIONS
 #define WITH_TASKS_INFO 1
 #endif
@@ -38,12 +40,26 @@ static void register_restart();
 static void register_tasks();
 #endif
 
+#ifdef TEST_COMMANDS
+static void register_tests(){
+	const esp_console_cmd_t cmd = {
+			.command = "test_codeflash_init",
+			.help = "codeflash_test",
+			.func = &test_codeflash_init,
+	};
+	ESP_ERROR_CHECK(esp_console_cmd_register(&cmd));
+}
+#endif
+
 void register_system()
 {
     register_free();
     register_heap();
     register_version();
     register_restart();
+#ifdef TEST_COMMANDS
+	register_tests();
+#endif
 #if WITH_TASKS_INFO
     register_tasks();
 #endif
