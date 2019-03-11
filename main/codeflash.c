@@ -20,21 +20,25 @@
 
 #include "codeflash.h"
 
-
+#define MAX_VALUE(a) (((unsigned long long)1 << (sizeof(a) * CHAR_BIT)) - 1)
+#define SIZE_OF_CRON_LENGTH_AND_CODE 9
 
 static const esp_partition_type_t PARTITION_TYPE = 0x40;
-static const char PARTITION_A_NAME[] = "code_nvs1";
-static const char PARTITION_B_NAME[] = "code_nvs2";
-static const char FLASH_STATE_KEY[] = "cf_state";
+static const char PARTITION_A_NAME[] = "A_codefl";
+static const char PARTITION_B_NAME[] = "B_codefl";
+
+static const char NVS_ACTIVE_P_KEY[] = "cf_k";
 static const char FLASH_NAMESPACE[] = "cf_ns";
 
 static size_t OFFSET_END_PARTITION;
 
+static char g_cron_data_storage[256];
 
 static struct Flash_states{
 	esp_partition_t *active_partition;
 	esp_partition_t *inactive_partition;
-	size_t first_free_offset;
+	size_t active_first_free_offset;
+	size_t inactive_first_free_offset;
 } g_partition_state;
 
 /** Get the first free address of a partition. */
@@ -79,8 +83,28 @@ void show_partition_use(esp_partition_t partition){
 			,out_str,(unsigned int)used_space, (unsigned int)used_space_in_KB);
 }
 
+
+/** \brief Change and erase the new inactive partition.
+ *
+ * */
+static void change_partitions(){
+	nvs_handle handler;
+	esp_partition_t *temp_p;
+
+	temp_p = g_partition_state.active_partition;
+	g_partition_state.active_partition = g_partition_state.inactive_partition;
+	g_partition_state.inactive_partition = temp_p;
+
+	ESP_ERROR_CHECK(esp_partition_erase_range(g_partition_state.inactive_partition, 0,
+			g_partition_state.inactive_partition->size));
+	nvs_open(FLASH_NAMESPACE, NVS_READWRITE, &handler);
+	nvs_set_blob(handler, NVS_ACTIVE_P_KEY, g_partition_state.active_partition->label
+			, (size_t)strlen(PARTITION_A_NAME) + 1);
+	nvs_commit(handler);
+}
+
 /** \brief Initialize - get the data from the NVS.
- *  Saved data is the g_flash_state structure.
+ *  Save g_flash_state structure if not saved yet.
  *  \ret ESP_OK when ok
  *  \ret NVS error codes
  *  \ret ESP_ERR_NOT_FOUND when the partitions cannot be find
@@ -88,9 +112,12 @@ void show_partition_use(esp_partition_t partition){
 esp_err_t codeflash_init(){
 	esp_err_t err;
 	nvs_handle nvs_handler;							// Get data
+	char partition_label[17];
+	size_t size = 17;
+
 	err = nvs_open(FLASH_NAMESPACE, NVS_READWRITE, &nvs_handler);
 	uint8_t first_start = 0;
-	size_t size;
+	unsigned char active_partition;
 
 	if(ESP_ERR_NVS_NOT_FOUND == err){
 		ESP_LOGI(__func__,"First module init.");
@@ -99,9 +126,7 @@ esp_err_t codeflash_init(){
 		ESP_LOGE(__func__,"nvs_open error code: '%i'",err);
 		return err;
 	}
-
-	size = sizeof(g_partition_state);
-	err = nvs_get_blob(nvs_handler, FLASH_STATE_KEY, &g_partition_state, &size);
+	err = nvs_get_blob(nvs_handler, NVS_ACTIVE_P_KEY, partition_label, size);
 	if(ESP_ERR_NVS_NOT_FOUND == err){
 		ESP_LOGI(__func__,"No entry found.");
 		first_start = 1;
@@ -109,36 +134,183 @@ esp_err_t codeflash_init(){
 		ESP_LOGE(__func__,"nvs_get_blob error code: '%i",err);
 		return err;
 	}
-	if(first_start){
-		esp_partition_iterator_t part_iterators[2];
-		part_iterators[0] = esp_partition_find( PARTITION_TYPE,
-				ESP_PARTITION_SUBTYPE_ANY,
-						PARTITION_A_NAME);
-		part_iterators[1] = esp_partition_find( PARTITION_TYPE,
-				ESP_PARTITION_SUBTYPE_ANY,
-						PARTITION_B_NAME);
-		if( !(part_iterators[0] && part_iterators[1]) ){
-			ESP_LOGE(__func__,"Codeflash partition not found.");
-			return ESP_ERR_NOT_FOUND;
-		}
-		g_partition_state.active_partition = (esp_partition_t*)esp_partition_get(part_iterators[0]);
-		g_partition_state.inactive_partition = (esp_partition_t*)esp_partition_get(part_iterators[1]);
-		ESP_LOGI(__func__, "First start: Erasing code partitions...");
-		esp_partition_erase_range(g_partition_state.active_partition, 0, 512*1024);
-		esp_partition_erase_range(g_partition_state.inactive_partition, 0, 512*1024);
-		ESP_LOGI(__func__, "Partitions are erased");
-		nvs_set_blob(nvs_handler, FLASH_STATE_KEY, &g_partition_state,sizeof(g_partition_state));
+
+	esp_partition_iterator_t part_iterator_A;
+	esp_partition_iterator_t part_iterator_B;
+	esp_partition_t *partition_A;
+	esp_partition_t *partition_B;
+	part_iterator_A = esp_partition_find( PARTITION_TYPE,		// Partition A
+			ESP_PARTITION_SUBTYPE_ANY,
+					PARTITION_A_NAME);
+	part_iterator_B = esp_partition_find( PARTITION_TYPE,		// Partition B
+			ESP_PARTITION_SUBTYPE_ANY,
+					PARTITION_B_NAME);
+	if( !(part_iterator_A && part_iterator_B) ){
+		ESP_LOGE(__func__,"Codeflash partition not found.");
+		return ESP_ERR_NOT_FOUND;
 	}
+	partition_A = (esp_partition_t*)esp_partition_get(part_iterator_A);
+	partition_B = (esp_partition_t*)esp_partition_get(part_iterator_B);
+	if(first_start){
+		g_partition_state.active_partition = partition_A;
+		g_partition_state.inactive_partition = partition_B;
+		ESP_LOGI(__func__, "First start: Erasing code partitions...");
+		esp_partition_erase_range(g_partition_state.active_partition, 0,
+				g_partition_state.active_partition->size);
+		esp_partition_erase_range(g_partition_state.inactive_partition, 0,
+				g_partition_state.inactive_partition->size);
+		ESP_LOGI(__func__, "Partitions are erased");
+		nvs_set_blob(nvs_handler, NVS_ACTIVE_P_KEY, PARTITION_A_NAME,
+				(size_t)strlen(PARTITION_A_NAME) + 1);
+	}else{			// NVS info found
+		nvs_get_blob(nvs_handler, NVS_ACTIVE_P_KEY, partition_label,
+				(size_t)strlen(PARTITION_A_NAME) + 1);
+		if(partition_label[0] == 'A'){
+			g_partition_state.active_partition = partition_A;
+			g_partition_state.inactive_partition = partition_B;
+		}
+		else{
+			g_partition_state.active_partition = partition_B;
+			g_partition_state.inactive_partition = partition_A;
+			if(partition_label[0] != 'B')
+				ESP_LOGE(__func__,"Partition name in NVS corrupted");
+		}
+	}
+	// search the last item
 	OFFSET_END_PARTITION = (size_t)g_partition_state.active_partition->size - 1;
-	g_partition_state.first_free_offset = get_first_free_offset(*g_partition_state.active_partition);
+	g_partition_state.active_first_free_offset = get_first_free_offset(*g_partition_state.active_partition);
 	show_partition_use(*g_partition_state.active_partition);
+	// commit NVS
 	nvs_commit(nvs_handler);
 	nvs_close(nvs_handler);
 
 	return ESP_OK;
 }
 
+/** \brief Writes raw data into the flash memory.
+ *  \param data to be written
+ *  \param length length of the data
+ *  \param into_inactive 0: append data into active, else into inactive partition
+ * */
+esp_err_t codeflash_append_raw_data(void *data, size_t length, int into_inactive){
+	esp_err_t ret;
+	if(!data)
+		return ESP_ERR_INVALID_ARG;
+	if(!length)
+		return ESP_ERR_INVALID_SIZE;
+
+	size_t offset;
+	esp_partition_t *partition;
+	if(into_inactive){
+		offset = g_partition_state.inactive_first_free_offset;
+		partition = g_partition_state.inactive_partition;
+	}
+	else{
+		offset = g_partition_state.active_first_free_offset;
+		partition = g_partition_state.active_partition;
+	}// todo change 0 back to offset
+
+	ret = esp_partition_write(partition, 0, data, length);
+	if(ret == ESP_OK){
+		if(into_inactive)
+			g_partition_state.inactive_first_free_offset += length;
+		else
+			g_partition_state.active_first_free_offset += length;
+	}
+	return ret;
+}
+
+/** \brief Search a key entry from the active partition.
+ *  Allocate memory for storing cron string.
+ *  \param code search by
+ *  \param output data
+ *  \ret esp errors.
+ *  \ret ESP_NOT_FOUND when the code is not in the flash memory.
+ *  \ret ESP_OK when the data has been found and memory allocated for cron string.
+ * */
+esp_err_t codeflash_get_by_code(ib_code_t code ,codeflash_t *data_f){
+	esp_err_t ret;
+	size_t addr;
+	if(!data_f || code == MAX_VALUE(ib_code_t))
+		return ESP_ERR_INVALID_ARG;
+
+	addr = 0;
+	while(addr < g_partition_state.active_first_free_offset){
+		ret = esp_partition_read(g_partition_state.active_partition,		// Read next entry
+				addr, &data_f, SIZE_OF_CRON_LENGTH_AND_CODE);
+		if(ESP_OK != ret)
+			return ret;
+
+		if(data_f->code == code){		// Found?
+			addr += SIZE_OF_CRON_LENGTH_AND_CODE; // read cron string into the global variable
+			esp_partition_read(g_partition_state.active_partition, addr,
+					g_cron_data_storage, data_f->cron_length);
+			data_f->cron = g_cron_data_storage;
+			return ESP_OK;
+		}
+		addr += (SIZE_OF_CRON_LENGTH_AND_CODE + data_f->cron_length);
+	}	// End of the list?
+	return ESP_ERR_NOT_FOUND;
+}
+
+void codeflash_erase_both(){
+	printf("Erase both partition... size: %i\n",g_partition_state.active_partition->size);
+	ESP_ERROR_CHECK(esp_partition_erase_range(g_partition_state.active_partition,
+			0,
+			g_partition_state.active_partition->size));
+
+	ESP_ERROR_CHECK(esp_partition_erase_range(g_partition_state.inactive_partition,
+			0,
+			g_partition_state.inactive_partition->size));
+}
+
 #ifdef TEST_COMMANDS
+
+void print_codeflash_data(size_t offset, size_t length, int from_inactive){
+	uint8_t buffer[length];
+	esp_partition_t *part;
+	int i = length;
+	if(from_inactive){
+		printf("Get data from inactive partition...\n\n");
+		part = g_partition_state.inactive_partition;
+	}
+	else{
+		printf("Get data from active partition...\n\n");
+		part = g_partition_state.active_partition;
+	}
+	printf("Data from %X:\n",offset);
+	esp_partition_read(part, offset, buffer, length);
+	for(int j = 0;j < i; j++){
+		printf("%02X:",buffer[j]);
+	}
+	printf("\n");
+}
+
+void test_codeflash_write(){
+	printf("Run write test\n");
+	esp_err_t ret;
+	char data[21];
+	ib_code_t code = 448532016;
+	codeflash_t flash_data;
+	data[0] = (unsigned char)12;
+	for(int i = 1; i < 9; i++){
+		data[i] = (unsigned char)code;
+		code >>= 8;
+	}
+	strcpy(&(data[9]),"* * * * * *");
+	printf("Append data: %ld %s\n",code, &(data[9]));
+	ret = codeflash_append_raw_data(data, 21, 1);
+	ESP_ERROR_CHECK(ret);
+
+	change_partitions();
+	print_codeflash_data(0,256,0);
+	print_codeflash_data(0,256,1);
+	ret = codeflash_get_by_code(code, &flash_data);
+
+	ESP_ERROR_CHECK(ret);
+	printf("Get by code: %ld %s %i\n",flash_data.code,flash_data.cron,flash_data.cron_length);
+}
+
 void test_codeflash_init(){
 	printf("Run init test\n");
 	esp_err_t ret;
@@ -146,6 +318,14 @@ void test_codeflash_init(){
 	ESP_ERROR_CHECK(ret);
 	vTaskDelay(3000 / portTICK_RATE_MS);
 }
+
+void test_codeflash_nvs_reset(){
+	nvs_handle handler;
+	nvs_open(FLASH_NAMESPACE, NVS_READWRITE,  &handler);
+	nvs_erase_key(handler, NVS_ACTIVE_P_KEY);
+}
+
+
 #endif
 
 
