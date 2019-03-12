@@ -90,16 +90,32 @@ void show_partition_use(esp_partition_t partition){
 static void change_partitions(){
 	nvs_handle handler;
 	esp_partition_t *temp_p;
+	size_t temp;
+	esp_err_t ret;
 
 	temp_p = g_partition_state.active_partition;
 	g_partition_state.active_partition = g_partition_state.inactive_partition;
 	g_partition_state.inactive_partition = temp_p;
 
+	temp = g_partition_state.active_first_free_offset;
+	g_partition_state.active_first_free_offset = g_partition_state.inactive_first_free_offset;
+	g_partition_state.inactive_first_free_offset = temp;
+
 	ESP_ERROR_CHECK(esp_partition_erase_range(g_partition_state.inactive_partition, 0,
 			g_partition_state.inactive_partition->size));
-	nvs_open(FLASH_NAMESPACE, NVS_READWRITE, &handler);
+	g_partition_state.inactive_first_free_offset = 0;
+
+	ret = nvs_open(FLASH_NAMESPACE, NVS_READWRITE, &handler);
+	if(ESP_OK != ret){
+		ESP_LOGE(__func__,"NVS open '%i'",ret);
+		return;
+	}
 	nvs_set_blob(handler, NVS_ACTIVE_P_KEY, g_partition_state.active_partition->label
 			, (size_t)strlen(PARTITION_A_NAME) + 1);
+	if(ESP_OK != ret){
+		ESP_LOGE(__func__,"NVS set blob '%i'",ret);
+		return;
+	}
 	nvs_commit(handler);
 }
 
@@ -113,11 +129,10 @@ esp_err_t codeflash_init(){
 	esp_err_t err;
 	nvs_handle nvs_handler;							// Get data
 	char partition_label[17];
-	size_t size = 17;
-
+	const size_t size_of_nvs_data = (size_t)strlen(PARTITION_A_NAME) + 1;
+	size_t size = size_of_nvs_data;
 	err = nvs_open(FLASH_NAMESPACE, NVS_READWRITE, &nvs_handler);
 	uint8_t first_start = 0;
-	unsigned char active_partition;
 
 	if(ESP_ERR_NVS_NOT_FOUND == err){
 		ESP_LOGI(__func__,"First module init.");
@@ -126,7 +141,8 @@ esp_err_t codeflash_init(){
 		ESP_LOGE(__func__,"nvs_open error code: '%i'",err);
 		return err;
 	}
-	err = nvs_get_blob(nvs_handler, NVS_ACTIVE_P_KEY, partition_label, size);
+	// Get last active partition
+	err = nvs_get_str(nvs_handler, NVS_ACTIVE_P_KEY, partition_label, &size);
 	if(ESP_ERR_NVS_NOT_FOUND == err){
 		ESP_LOGI(__func__,"No entry found.");
 		first_start = 1;
@@ -151,6 +167,7 @@ esp_err_t codeflash_init(){
 	}
 	partition_A = (esp_partition_t*)esp_partition_get(part_iterator_A);
 	partition_B = (esp_partition_t*)esp_partition_get(part_iterator_B);
+
 	if(first_start){
 		g_partition_state.active_partition = partition_A;
 		g_partition_state.inactive_partition = partition_B;
@@ -160,11 +177,8 @@ esp_err_t codeflash_init(){
 		esp_partition_erase_range(g_partition_state.inactive_partition, 0,
 				g_partition_state.inactive_partition->size);
 		ESP_LOGI(__func__, "Partitions are erased");
-		nvs_set_blob(nvs_handler, NVS_ACTIVE_P_KEY, PARTITION_A_NAME,
-				(size_t)strlen(PARTITION_A_NAME) + 1);
+		nvs_set_str(nvs_handler, NVS_ACTIVE_P_KEY, partition_label);
 	}else{			// NVS info found
-		nvs_get_blob(nvs_handler, NVS_ACTIVE_P_KEY, partition_label,
-				(size_t)strlen(PARTITION_A_NAME) + 1);
 		if(partition_label[0] == 'A'){
 			g_partition_state.active_partition = partition_A;
 			g_partition_state.inactive_partition = partition_B;
@@ -210,7 +224,7 @@ esp_err_t codeflash_append_raw_data(void *data, size_t length, int into_inactive
 		partition = g_partition_state.active_partition;
 	}// todo change 0 back to offset
 
-	ret = esp_partition_write(partition, 0, data, length);
+	ret = esp_partition_write(partition, offset, data, length);
 	if(ret == ESP_OK){
 		if(into_inactive)
 			g_partition_state.inactive_first_free_offset += length;
@@ -228,7 +242,7 @@ esp_err_t codeflash_append_raw_data(void *data, size_t length, int into_inactive
  *  \ret ESP_NOT_FOUND when the code is not in the flash memory.
  *  \ret ESP_OK when the data has been found and memory allocated for cron string.
  * */
-esp_err_t codeflash_get_by_code(ib_code_t code ,codeflash_t *data_f){
+esp_err_t codeflash_get_by_code(ib_code_t code, codeflash_t *data_f){
 	esp_err_t ret;
 	size_t addr;
 	if(!data_f || code == MAX_VALUE(ib_code_t))
@@ -237,15 +251,21 @@ esp_err_t codeflash_get_by_code(ib_code_t code ,codeflash_t *data_f){
 	addr = 0;
 	while(addr < g_partition_state.active_first_free_offset){
 		ret = esp_partition_read(g_partition_state.active_partition,		// Read next entry
-				addr, &data_f, SIZE_OF_CRON_LENGTH_AND_CODE);
+				addr, data_f, SIZE_OF_CRON_LENGTH_AND_CODE);
 		if(ESP_OK != ret)
 			return ret;
-
-		if(data_f->code == code){		// Found?
+#ifdef TEST_COMMANDS
+		printf("Addr value:\n <%i>\n",addr);
+		printf("Found data:\n [%ld]\n",data_f->code);
+#endif
+		if(1){		// Found?
 			addr += SIZE_OF_CRON_LENGTH_AND_CODE; // read cron string into the global variable
 			esp_partition_read(g_partition_state.active_partition, addr,
 					g_cron_data_storage, data_f->cron_length);
 			data_f->cron = g_cron_data_storage;
+#ifdef TEST_COMMANDS
+			printf("Found string:\n %s",data_f->cron);
+#endif
 			return ESP_OK;
 		}
 		addr += (SIZE_OF_CRON_LENGTH_AND_CODE + data_f->cron_length);
