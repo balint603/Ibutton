@@ -8,8 +8,6 @@
 #ifndef MAIN_IBUTTON_H_
 #define MAIN_IBUTTON_H_
 
-
-typedef unsigned long ib_code_t;
 typedef int ib_ret_t;
 
 #define IB_OK 0
@@ -18,7 +16,7 @@ typedef int ib_ret_t;
 
 void onewire_init(gpio_num_t data_pin);
 int ib_presence();
-ib_ret_t ib_read_code(ib_code_t *ib_code);
+ib_ret_t ib_read_code(long *ib_code);
 
 
 

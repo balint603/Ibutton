@@ -48,7 +48,7 @@ typedef enum infos {
 
 /** Configuration settings */
 typedef struct ib_data{
-	ib_code_t su_key;
+	long su_key;
 	unsigned int opening_time;
 	unsigned int mode;
 	unsigned int button_enable;
@@ -134,7 +134,7 @@ static int is_su_mode_enable(){
  *  It looks up the key in the database
  * and makes a decision which input must be generated.
  * */
-static void key_touched_event(ib_code_t code){
+static void key_touched_event(long code){
 	inputs_t input;
 // todo search from memory and make decision
 	if(448532016 == code)
@@ -165,7 +165,7 @@ TaskFunction_t ib_reader_task(void *pvParam){
 				30000, pdFALSE, 0, timeout_callback);
 
 
-	ib_code_t ibutton_code;
+	long ibutton_code;
 	inputs_t input;
 	inputs_t input_incoming;
 	int button_prev_state = 0;

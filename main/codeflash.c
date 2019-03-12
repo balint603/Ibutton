@@ -44,20 +44,20 @@ static struct Flash_states{
 /** Get the first free address of a partition. */
 static size_t get_first_free_offset(esp_partition_t partition){
 	size_t addr = 0;
-	size_t value;
+	uint8_t cron_length;
 	esp_err_t ret;
 
 	while(addr < OFFSET_END_PARTITION){
 		// READ data from the current address into value.
-		ret = esp_partition_read(&partition, addr, &value, sizeof(value));
+		ret = esp_partition_read(&partition, addr, &cron_length, sizeof(uint8_t));
 		if(ESP_OK != ret){
 			ESP_LOGE(__func__,"Partition read err code: '%i'",ret);
 			return 1;
 		}
 
-		if(0xFFFFFFFF == value)
+		if(0xFF == cron_length)
 			return addr;
-		addr += value;		//Get the next data.
+		addr += (cron_length + 9);		//Get the next data.
 	}
 	return 1;
 }
@@ -65,16 +65,19 @@ static size_t get_first_free_offset(esp_partition_t partition){
  *
  * */
 void show_partition_use(esp_partition_t partition){
-	char out_str[] = "[                ]";
+	char out_str[] = "[                                ]";
 	size_t used_space = get_first_free_offset(partition);
 	size_t used_space_in_KB = used_space;
 	used_space_in_KB >>= 10;
 
-	if(used_space == 1)
+	if(used_space == 1){
+		ESP_LOGE(__func__,"Get first free");
 		return;
+	}
 
 	int i = 1;
 	int cnt = used_space;
+	cnt >>= 14;
 	while(cnt-- > 0){
 		out_str[i++] = '=';
 	}
@@ -110,13 +113,13 @@ static void change_partitions(){
 		ESP_LOGE(__func__,"NVS open '%i'",ret);
 		return;
 	}
-	nvs_set_blob(handler, NVS_ACTIVE_P_KEY, g_partition_state.active_partition->label
-			, (size_t)strlen(PARTITION_A_NAME) + 1);
+	nvs_set_str(handler, NVS_ACTIVE_P_KEY, g_partition_state.active_partition->label);
 	if(ESP_OK != ret){
 		ESP_LOGE(__func__,"NVS set blob '%i'",ret);
 		return;
 	}
 	nvs_commit(handler);
+	nvs_close(handler);
 }
 
 /** \brief Initialize - get the data from the NVS.
@@ -147,7 +150,7 @@ esp_err_t codeflash_init(){
 		ESP_LOGI(__func__,"No entry found.");
 		first_start = 1;
 	}else if(ESP_OK != err){
-		ESP_LOGE(__func__,"nvs_get_blob error code: '%i",err);
+		ESP_LOGE(__func__,"nvs get str error code: '%i",err);
 		return err;
 	}
 
@@ -177,7 +180,11 @@ esp_err_t codeflash_init(){
 		esp_partition_erase_range(g_partition_state.inactive_partition, 0,
 				g_partition_state.inactive_partition->size);
 		ESP_LOGI(__func__, "Partitions are erased");
-		nvs_set_str(nvs_handler, NVS_ACTIVE_P_KEY, partition_label);
+		err = nvs_set_str(nvs_handler, NVS_ACTIVE_P_KEY,
+				g_partition_state.active_partition->label);
+		if(ESP_OK != err){
+			ESP_LOGE(__func__,"NVS data set");
+		}
 	}else{			// NVS info found
 		if(partition_label[0] == 'A'){
 			g_partition_state.active_partition = partition_A;
@@ -187,7 +194,7 @@ esp_err_t codeflash_init(){
 			g_partition_state.active_partition = partition_B;
 			g_partition_state.inactive_partition = partition_A;
 			if(partition_label[0] != 'B')
-				ESP_LOGE(__func__,"Partition name in NVS corrupted");
+				ESP_LOGE(__func__,"Partition name in NVS corrupted: ['%s']",partition_label);
 		}
 	}
 	// search the last item
@@ -242,10 +249,10 @@ esp_err_t codeflash_append_raw_data(void *data, size_t length, int into_inactive
  *  \ret ESP_NOT_FOUND when the code is not in the flash memory.
  *  \ret ESP_OK when the data has been found and memory allocated for cron string.
  * */
-esp_err_t codeflash_get_by_code(ib_code_t code, codeflash_t *data_f){
+esp_err_t codeflash_get_by_code(long code, codeflash_t *data_f){
 	esp_err_t ret;
 	size_t addr;
-	if(!data_f || code == MAX_VALUE(ib_code_t))
+	if(!data_f || code == MAX_VALUE(long))
 		return ESP_ERR_INVALID_ARG;
 
 	addr = 0;
@@ -257,8 +264,9 @@ esp_err_t codeflash_get_by_code(ib_code_t code, codeflash_t *data_f){
 #ifdef TEST_COMMANDS
 		printf("Addr value:\n <%i>\n",addr);
 		printf("Found data:\n [%ld]\n",data_f->code);
+		printf("Search this data:\n [%ld]\n",code);
 #endif
-		if(1){		// Found?
+		if(code == data_f->code){		// Found?
 			addr += SIZE_OF_CRON_LENGTH_AND_CODE; // read cron string into the global variable
 			esp_partition_read(g_partition_state.active_partition, addr,
 					g_cron_data_storage, data_f->cron_length);
@@ -309,26 +317,45 @@ void print_codeflash_data(size_t offset, size_t length, int from_inactive){
 void test_codeflash_write(){
 	printf("Run write test\n");
 	esp_err_t ret;
-	char data[21];
-	ib_code_t code = 448532016;
+	const int data_size = 20 * 9 + 20 * 12;
+	char data[data_size];
+	int data_cnt;
+	long code[20];
+	long code_data = 13;
 	codeflash_t flash_data;
-	data[0] = (unsigned char)12;
-	for(int i = 1; i < 9; i++){
-		data[i] = (unsigned char)code;
-		code >>= 8;
+
+	data_cnt = 0;
+	for(int i = 0; i < 20; i++){
+		long temp_code;
+
+		data[data_cnt++] = (unsigned char)12;			// Set cron size
+
+		code[i] = code_data++;
+		temp_code = code[i];
+		for(int j = 8; j > 0; j--){
+			data[data_cnt++] = (unsigned char)temp_code;
+			temp_code >>= 8;
+		}
+		strcpy(&(data[data_cnt]),"* * * * * *");		// Cron
+		data_cnt += 12;
 	}
-	strcpy(&(data[9]),"* * * * * *");
-	printf("Append data: %ld %s\n",code, &(data[9]));
-	ret = codeflash_append_raw_data(data, 21, 1);
+
+	ret = codeflash_append_raw_data(data, data_size, 1);
 	ESP_ERROR_CHECK(ret);
 
 	change_partitions();
-	print_codeflash_data(0,256,0);
-	print_codeflash_data(0,256,1);
-	ret = codeflash_get_by_code(code, &flash_data);
 
-	ESP_ERROR_CHECK(ret);
-	printf("Get by code: %ld %s %i\n",flash_data.code,flash_data.cron,flash_data.cron_length);
+	for(int i = 0; i < 20; i++){
+		ret = codeflash_get_by_code(code[i], &flash_data);
+		ESP_ERROR_CHECK(ret);
+		printf("Get by code: %ld %s %i\n",flash_data.code,flash_data.cron,flash_data.cron_length);
+	}
+	int cnt = 0;
+	for(int i = 0; i < 5; i++){
+		print_codeflash_data(0,256,0);
+		print_codeflash_data(0,256,1);
+		cnt += 256;
+	}
 }
 
 void test_codeflash_init(){

@@ -15,13 +15,13 @@ typedef unsigned int size_t;
 
 typedef struct __attribute__((__packed__)) code_data{
 	uint8_t cron_length;
-	ib_code_t code;
+	long code;
 	char *cron;
 } codeflash_t;
 
 esp_err_t codeflash_init();
 esp_err_t codeflash_append_raw_data(void *data, size_t length, int into_inactive);
-esp_err_t codeflash_get_by_code(ib_code_t code, codeflash_t *dst);
+esp_err_t codeflash_get_by_code(long code, codeflash_t *dst);
 
 #define TEST_COMMANDS
 

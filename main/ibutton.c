@@ -73,7 +73,7 @@ static void send_byte(uint8_t data){
 
 /** \brief Reads a byte.
  *  Must called just after the command byte has been sent out.
- *  \ret ib_code_t ibutton code.
+ *  \ret long ibutton code.
  * */
 static uint8_t read_byte(){
 	uint8_t byte = 0;
@@ -114,13 +114,13 @@ int ib_presence(){
 }
 
 /** \brief uint8_t array to long conversion. * */
-static ib_code_t bytes_to_code(uint8_t *data){
-	ib_code_t code_val = 0;
+static long bytes_to_code(uint8_t *data){
+	long code_val = 0;
 	if(!data)
 		return code_val;
 	for(int i = 6; i > 0; i--){
 		code_val <<= 8;
-		code_val |= (ib_code_t)*(data+i);
+		code_val |= (long)*(data+i);
 	}
 	return code_val;
 }
@@ -133,7 +133,7 @@ static ib_code_t bytes_to_code(uint8_t *data){
  * \ret IB_CRC_ERR when CRC error.
  * \ret IB_FAM_ERR when the family code does not match.
  * */
-ib_ret_t ib_read_code(ib_code_t *ib_code){
+ib_ret_t ib_read_code(long *ib_code){
 	uint8_t crc = 0;
 	uint8_t data[8];
 
