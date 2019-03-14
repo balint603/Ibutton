@@ -21,6 +21,7 @@
 #include "rom/uart.h"
 #include "cmd_system.h"
 #include "sdkconfig.h"
+#include "cmd_tests.h"
 
 #include "codeflash.h"
 
@@ -38,38 +39,6 @@ static void register_version();
 static void register_restart();
 #if WITH_TASKS_INFO
 static void register_tasks();
-#endif
-
-#ifdef TEST_COMMANDS
-static void register_tests(){
-	const esp_console_cmd_t cmd = {
-			.command = "test_codeflash_init",
-			.help = "codeflash_test",
-			.func = &test_codeflash_init,
-	};
-	ESP_ERROR_CHECK(esp_console_cmd_register(&cmd));
-
-	const esp_console_cmd_t cmd2 = {
-			.command = "test_codeflash_erase_both",
-			.help = "codeflash_erase_both",
-			.func = &codeflash_erase_both,
-	};
-	ESP_ERROR_CHECK(esp_console_cmd_register(&cmd2));
-
-	const esp_console_cmd_t cmd3 = {
-				.command = "test_codeflash_write-read",
-				.help = "codeflash_write-read",
-				.func = &test_codeflash_write,
-		};
-		ESP_ERROR_CHECK(esp_console_cmd_register(&cmd3));
-
-	const esp_console_cmd_t cmd4 = {
-				.command = "test_codeflash_nvs_data_reset",
-				.help = "codeflash data reset",
-				.func = &test_codeflash_nvs_reset,
-		};
-		ESP_ERROR_CHECK(esp_console_cmd_register(&cmd4));
-}
 #endif
 
 void register_system()

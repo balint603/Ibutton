@@ -18,8 +18,10 @@ void app_main(){
 	nvs_flash_init();
 	start_console();
 	wifi_get_data();
-	start_ib_reader();
+	// init SNTP
 	//mqtt_app_start();
+	//codeflash_init();
+	start_ib_reader();
 	while(1){
 		gpio_set_level(4, 1);
 		vTaskDelay(20 / portTICK_RATE_MS);

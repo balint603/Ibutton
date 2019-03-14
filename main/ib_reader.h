@@ -9,6 +9,7 @@
 #define MAIN_IB_READER_H_
 
 #include "esp_system.h"
+#include <time.h>
 
 
 #define READER_DISABLE_TICKS pdMS_TO_TICKS(400)
@@ -23,6 +24,8 @@
 #define PIN_SU_ENABLE	GPIO_NUM_15
 
 void start_ib_reader();
+void set_esp_time(struct tm *new_time);
+struct tm get_esp_time();
 
 
 #endif /* MAIN_IB_READER_H_ */

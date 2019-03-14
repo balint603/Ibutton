@@ -93,13 +93,11 @@ number(char **s, constraint *limit)
 
     num = strtoul(*s, &e, 10);
     if (e == *s) {
-	error("line %d: badly formed %s string <%s> ", logicalline, limit ? limit->units : "time", e);
-	return 0;
+    	return 0;
     }
 
     if (limit) {
 	if (constrain(num, limit) == 0) {
-	    error("line %d: bad number in %s", logicalline, limit->units);
 	    return 0;
 	}
     }
@@ -206,3 +204,80 @@ tmtoEvmask(struct tm *tm, Evmask *time)
     smonth(time,1+tm->tm_mon);
     swday(time,   tm->tm_wday);
 }
+
+char *
+split_crons(char *crons_s, int *length){
+	if(crons_s == NULL)
+		return NULL;
+
+	char *cron_next = crons_s;
+	while((*length)--){
+		switch(*cron_next){
+			case '\0':
+				return NULL; 	// It was the last cron string, (EOF) there are no next.
+				break;
+			case SEPARATOR:
+				*cron_next = '\0';	// Change it to NULL terminator
+				return ++cron_next;	// Must point to the next cron str
+				break;
+			default:
+				break;
+		}
+		cron_next++;
+	}
+	return NULL;	// No null terminator in size range.
+}
+
+/** \brief Check all crons.
+ *  \param crons_s Cron strings with separators.
+ *    - 'OR' operation between cron strings.
+ *  \ret 0 out of domains
+ *  \ret 1 in a domain
+ * */
+int
+checkcrons(char *crons_s, struct tm time, int cron_length)
+{
+	char cron[256];
+	char *cron_next;
+	char *cron_cur = cron;
+	Evmask mask_time;
+	Evmask mask_cron;
+
+	if(crons_s == NULL || cron_length == 0)	// No crons.
+		return 1;
+	tmtoEvmask(&time, &mask_time);
+	strcpy(cron,crons_s);
+	while(cron_length > 0){
+		cron_next = split_crons(cron_cur, &cron_length);
+		if(cron_next == NULL)
+			return 0;	// End of domain / Null parameter
+		getdatespec(cron_cur, &mask_cron);
+		if(check_domain(&mask_time, &mask_cron))
+			return 1;									// In domain
+		cron_cur = cron_next;
+	}
+	return 0;	// Not found a domain fitted in
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

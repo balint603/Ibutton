@@ -59,7 +59,7 @@ check_domain(Evmask *t, Evmask *m)
 {
 	printf("m0:%ld\n",t->minutes[0]);
 	printf("m1:%ld\n",t->minutes[1]);
-	printf("m0:%ld\n",m->minutes[0]);
+	printf("m0:%ld\n",m->minutes[0]);		// todo delete this
 	printf("m1:%ld\n",m->minutes[1]);
 	printf("h:%ld\n",t->hours);
 	printf("h:%ld\n",m->hours);

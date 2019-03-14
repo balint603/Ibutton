@@ -12,6 +12,7 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/semphr.h"
 #include "esp_partition.h"
 #include "rom/spi_flash.h"
 #include "nvs.h"
@@ -23,6 +24,9 @@
 #define MAX_VALUE(a) (((unsigned long long)1 << (sizeof(a) * CHAR_BIT)) - 1)
 #define SIZE_OF_CRON_LENGTH_AND_CODE 9
 
+static SemaphoreHandle_t g_semaphore_handle;
+
+/** Based on partition.csv file! */
 static const esp_partition_type_t PARTITION_TYPE = 0x40;
 static const char PARTITION_A_NAME[] = "A_codefl";
 static const char PARTITION_B_NAME[] = "B_codefl";
@@ -30,10 +34,13 @@ static const char PARTITION_B_NAME[] = "B_codefl";
 static const char NVS_ACTIVE_P_KEY[] = "cf_k";
 static const char FLASH_NAMESPACE[] = "cf_ns";
 
+/** Max address value of partition. */
 static size_t OFFSET_END_PARTITION;
 
+/** Static heap pool for a cron string, used by codeflash_get_by_code(). */
 static char g_cron_data_storage[256];
 
+/** Informations about partitions. */
 static struct Flash_states{
 	esp_partition_t *active_partition;
 	esp_partition_t *inactive_partition;
@@ -41,7 +48,10 @@ static struct Flash_states{
 	size_t inactive_first_free_offset;
 } g_partition_state;
 
-/** Get the first free address of a partition. */
+
+/** Get the first free address of a partition.
+ *  Increment addr until 0xFF found in place of addr.
+ * */
 static size_t get_first_free_offset(esp_partition_t partition){
 	size_t addr = 0;
 	uint8_t cron_length;
@@ -67,9 +77,6 @@ static size_t get_first_free_offset(esp_partition_t partition){
 void show_partition_use(esp_partition_t partition){
 	char out_str[] = "[                                ]";
 	size_t used_space = get_first_free_offset(partition);
-	size_t used_space_in_KB = used_space;
-	used_space_in_KB >>= 10;
-
 	if(used_space == 1){
 		ESP_LOGE(__func__,"Get first free");
 		return;
@@ -82,12 +89,12 @@ void show_partition_use(esp_partition_t partition){
 		out_str[i++] = '=';
 	}
 
-	printf("Used code flash space:\n	%s, in %iB, in %iKB\n"
-			,out_str,(unsigned int)used_space, (unsigned int)used_space_in_KB);
+	printf("Used code flash space:\n	%s, in %iB\n"
+			,out_str,(unsigned int)used_space);
 }
 
 
-/** \brief Change and erase the new inactive partition.
+/** \brief Change the partitions state and ERASE the new inactive partition.
  *
  * */
 static void change_partitions(){
@@ -122,21 +129,60 @@ static void change_partitions(){
 	nvs_close(handler);
 }
 
+/** \brief erasing both partitions.
+ *
+ * */
+void codeflash_erase_both(){
+	printf("Erase both partition... size: %i\n",g_partition_state.active_partition->size);
+	esp_err_t ret;
+	ret = esp_partition_erase_range(g_partition_state.active_partition,
+			0,
+			g_partition_state.active_partition->size);
+	if(ESP_OK != ret){
+		ESP_LOGE(__func__,"err code:'%i'",ret);
+		return;
+	}
+	ret = esp_partition_erase_range(g_partition_state.inactive_partition,
+			0,
+			g_partition_state.inactive_partition->size);
+	if(ESP_OK != ret){
+		ESP_LOGE(__func__,"err code:'%i'",ret);
+		return;
+	}
+	ESP_LOGI(__func__, "Partitions are erased");
+}
+
+/** \brief Check the data and correct cron_length fields if necessary.
+ *  \param data it must be a codeflash_t based database
+ *  \param length size of the database
+ *  \ret ESP_OK when no error found or all errors were corrected
+ *  \ret ???
+ * */
+esp_err_t codeflash_check_data(void *data, size_t length){
+return ESP_OK;
+}
+
 /** \brief Initialize - get the data from the NVS.
  *  Save g_flash_state structure if not saved yet.
- *  \ret ESP_OK when ok
- *  \ret NVS error codes
+ *  \ret ESP_OK initialized
+ *  \ret any nvs error codes, when an nvs function failed
+ *    - while reading saved active-partition information.
  *  \ret ESP_ERR_NOT_FOUND when the partitions cannot be find
+ *    - flash partition driver error
  * */
 esp_err_t codeflash_init(){
 	esp_err_t err;
-	nvs_handle nvs_handler;							// Get data
-	char partition_label[17];
+	nvs_handle nvs_handler;
+	char partition_label[17];			// Partition name / label
 	const size_t size_of_nvs_data = (size_t)strlen(PARTITION_A_NAME) + 1;
 	size_t size = size_of_nvs_data;
-	err = nvs_open(FLASH_NAMESPACE, NVS_READWRITE, &nvs_handler);
 	uint8_t first_start = 0;
 
+	g_semaphore_handle = xSemaphoreCreateMutex();
+	if(g_semaphore_handle == NULL)
+		ESP_LOGW(__func__,"Semaphore create NULL");
+
+	err = nvs_open(FLASH_NAMESPACE, NVS_READWRITE, &nvs_handler);
 	if(ESP_ERR_NVS_NOT_FOUND == err){
 		ESP_LOGI(__func__,"First module init.");
 		first_start = 1;
@@ -156,8 +202,8 @@ esp_err_t codeflash_init(){
 
 	esp_partition_iterator_t part_iterator_A;
 	esp_partition_iterator_t part_iterator_B;
-	esp_partition_t *partition_A;
-	esp_partition_t *partition_B;
+	esp_partition_t *partition_A = NULL;
+	esp_partition_t *partition_B = NULL;
 	part_iterator_A = esp_partition_find( PARTITION_TYPE,		// Partition A
 			ESP_PARTITION_SUBTYPE_ANY,
 					PARTITION_A_NAME);
@@ -174,16 +220,12 @@ esp_err_t codeflash_init(){
 	if(first_start){
 		g_partition_state.active_partition = partition_A;
 		g_partition_state.inactive_partition = partition_B;
-		ESP_LOGI(__func__, "First start: Erasing code partitions...");
-		esp_partition_erase_range(g_partition_state.active_partition, 0,
-				g_partition_state.active_partition->size);
-		esp_partition_erase_range(g_partition_state.inactive_partition, 0,
-				g_partition_state.inactive_partition->size);
-		ESP_LOGI(__func__, "Partitions are erased");
+		codeflash_erase_both();
+
 		err = nvs_set_str(nvs_handler, NVS_ACTIVE_P_KEY,
 				g_partition_state.active_partition->label);
 		if(ESP_OK != err){
-			ESP_LOGE(__func__,"NVS data set");
+			ESP_LOGE(__func__,"nvs set str err code: '%i'",err);
 		}
 	}else{			// NVS info found
 		if(partition_label[0] == 'A'){
@@ -193,66 +235,83 @@ esp_err_t codeflash_init(){
 		else{
 			g_partition_state.active_partition = partition_B;
 			g_partition_state.inactive_partition = partition_A;
-			if(partition_label[0] != 'B')
+			if(partition_label[0] != 'B'){
 				ESP_LOGE(__func__,"Partition name in NVS corrupted: ['%s']",partition_label);
+				// todo error handling: is it good to choose a random active partition?
+			}
 		}
 	}
 	// search the last item
 	OFFSET_END_PARTITION = (size_t)g_partition_state.active_partition->size - 1;
 	g_partition_state.active_first_free_offset = get_first_free_offset(*g_partition_state.active_partition);
 	show_partition_use(*g_partition_state.active_partition);
-	// commit NVS
+
 	nvs_commit(nvs_handler);
 	nvs_close(nvs_handler);
-
 	return ESP_OK;
 }
 
 /** \brief Writes raw data into the flash memory.
+ * Does NOT check the data.
  *  \param data to be written
  *  \param length length of the data
  *  \param into_inactive 0: append data into active, else into inactive partition
+ *  \ret ESP_ERR_INVALID_ARG data is null
+ *  \ret ESP_ERR_NO_MEM when the available space is not enough
+ *  \ret ESP_OK
+ *  \ret any error codes by esp_partition_write()
  * */
 esp_err_t codeflash_append_raw_data(void *data, size_t length, int into_inactive){
 	esp_err_t ret;
+	size_t offset;
+	esp_partition_t *partition;
+	size_t first_free_offset;
+
+#ifdef TEST_COMMANDS
+	printf("Append param: <%i>\n",length);
+#endif
+
 	if(!data)
 		return ESP_ERR_INVALID_ARG;
 	if(!length)
-		return ESP_ERR_INVALID_SIZE;
-
-	size_t offset;
-	esp_partition_t *partition;
+		return ESP_OK;
 	if(into_inactive){
 		offset = g_partition_state.inactive_first_free_offset;
 		partition = g_partition_state.inactive_partition;
+		first_free_offset = g_partition_state.inactive_first_free_offset;
 	}
 	else{
 		offset = g_partition_state.active_first_free_offset;
 		partition = g_partition_state.active_partition;
-	}// todo change 0 back to offset
-
+		first_free_offset = g_partition_state.active_first_free_offset;
+	}
+	if( (partition->size - first_free_offset) < length )			// Check available space
+		return ESP_ERR_NO_MEM;
+	xSemaphoreTake(g_semaphore_handle,portMAX_DELAY);
 	ret = esp_partition_write(partition, offset, data, length);
-	if(ret == ESP_OK){
+	xSemaphoreGive(g_semaphore_handle);
+	if(ESP_OK == ret){
 		if(into_inactive)
 			g_partition_state.inactive_first_free_offset += length;
 		else
 			g_partition_state.active_first_free_offset += length;
-	}
+	}else
+		return ret;
 	return ret;
 }
 
-/** \brief Search a key entry from the active partition.
- *  Allocate memory for storing cron string.
+/** \brief Search codeflash_t data by iButton serial number (code).
+ * 	Cron string is stored in a static char array.
  *  \param code search by
  *  \param output data
- *  \ret esp errors.
- *  \ret ESP_NOT_FOUND when the code is not in the flash memory.
- *  \ret ESP_OK when the data has been found and memory allocated for cron string.
+ *  \ret ESP_INVALID_ARG
+ *  \ret ESP_NOT_FOUND when code parameter cannot be found
+ *  \ret ESP_OK when the data has been found and copied to parameter data_f
  * */
-esp_err_t codeflash_get_by_code(long code, codeflash_t *data_f){
+esp_err_t codeflash_get_by_code(unsigned long code, codeflash_t *data_f){
 	esp_err_t ret;
 	size_t addr;
-	if(!data_f || code == MAX_VALUE(long))
+	if(!data_f || code == MAX_VALUE(unsigned long))
 		return ESP_ERR_INVALID_ARG;
 
 	addr = 0;
@@ -261,35 +320,18 @@ esp_err_t codeflash_get_by_code(long code, codeflash_t *data_f){
 				addr, data_f, SIZE_OF_CRON_LENGTH_AND_CODE);
 		if(ESP_OK != ret)
 			return ret;
-#ifdef TEST_COMMANDS
-		printf("Addr value:\n <%i>\n",addr);
-		printf("Found data:\n [%ld]\n",data_f->code);
-		printf("Search this data:\n [%ld]\n",code);
-#endif
 		if(code == data_f->code){		// Found?
 			addr += SIZE_OF_CRON_LENGTH_AND_CODE; // read cron string into the global variable
 			esp_partition_read(g_partition_state.active_partition, addr,
-					g_cron_data_storage, data_f->cron_length);
-			data_f->cron = g_cron_data_storage;
-#ifdef TEST_COMMANDS
-			printf("Found string:\n %s",data_f->cron);
-#endif
+					g_cron_data_storage, data_f->crons_length);
+
+			data_f->crons = g_cron_data_storage;
+
 			return ESP_OK;
 		}
-		addr += (SIZE_OF_CRON_LENGTH_AND_CODE + data_f->cron_length);
+		addr += (SIZE_OF_CRON_LENGTH_AND_CODE + data_f->crons_length);
 	}	// End of the list?
 	return ESP_ERR_NOT_FOUND;
-}
-
-void codeflash_erase_both(){
-	printf("Erase both partition... size: %i\n",g_partition_state.active_partition->size);
-	ESP_ERROR_CHECK(esp_partition_erase_range(g_partition_state.active_partition,
-			0,
-			g_partition_state.active_partition->size));
-
-	ESP_ERROR_CHECK(esp_partition_erase_range(g_partition_state.inactive_partition,
-			0,
-			g_partition_state.inactive_partition->size));
 }
 
 #ifdef TEST_COMMANDS
@@ -317,53 +359,128 @@ void print_codeflash_data(size_t offset, size_t length, int from_inactive){
 void test_codeflash_write(){
 	printf("Run write test\n");
 	esp_err_t ret;
-	const int data_size = 20 * 9 + 20 * 12;
+	char cron_data[] = "45 20-22 * * 1-5";
+	const int data_size = 1 * 9 + 1 * (strlen(cron_data) + 1);
+	char data[data_size];
+	int data_cnt = 1;
+	unsigned long code;
+
+	code = 448532016;
+	data[0] = (char)data_size;
+	strcpy(&data[9],cron_data);
+	for(int j = 8; j > 0; j--){
+		data[data_cnt++] = (unsigned char)code;
+		code >>= 8;
+	}
+	ret = codeflash_append_raw_data(data, data_size, 0);
+	if(ret != ESP_OK){
+		ESP_LOGE(__func__,"Append ret='%x'",ret);
+	}
+}
+
+TaskFunction_t test_write_data_task(){
+	printf("Run write test\n");
+	esp_err_t ret;
+	const uint n_of_items = 1200;
+	const int data_size = n_of_items * 9 + n_of_items * 10;
 	char data[data_size];
 	int data_cnt;
-	long code[20];
-	long code_data = 13;
-	codeflash_t flash_data;
+	unsigned long code[n_of_items];
+	unsigned long code_data = g_partition_state.inactive_first_free_offset;
+	TickType_t tick_start, tick_end;
+	uint32_t tick_diff;
 
 	data_cnt = 0;
-	for(int i = 0; i < 20; i++){
-		long temp_code;
+	for(int i = 0; i < n_of_items; i++){
+		unsigned long temp_code;
 
-		data[data_cnt++] = (unsigned char)12;			// Set cron size
+		data[data_cnt++] = (unsigned char)10;			// Set cron size (always 10 always write 5 asterix
 
-		code[i] = code_data++;
+		code[i] = (code_data += 19);
 		temp_code = code[i];
 		for(int j = 8; j > 0; j--){
 			data[data_cnt++] = (unsigned char)temp_code;
 			temp_code >>= 8;
 		}
-		strcpy(&(data[data_cnt]),"* * * * * *");		// Cron
-		data_cnt += 12;
+		strcpy(&(data[data_cnt]),"* * * * *");		// Cron
+		data_cnt += 10;
 	}
-
+	tick_start = xTaskGetTickCount();
 	ret = codeflash_append_raw_data(data, data_size, 1);
-	ESP_ERROR_CHECK(ret);
-
+	ESP_LOGI(__func__,"codeflash_append_raw_data retval:'%x'",ret);
+	tick_end = xTaskGetTickCount();
+	tick_diff = (uint32_t)((tick_end - tick_start) / portTICK_RATE_MS);
+	ESP_LOGI(__func__,"Execute codeflash_append_raw_data with '%i' bytes, took '%i'ms",data_size,tick_diff);
+	ESP_LOGI(__func__,"'%i ticks",tick_end - tick_start);
 	change_partitions();
+	vTaskSuspend(xTaskGetCurrentTaskHandle());
+	return 0;
+}
 
-	for(int i = 0; i < 20; i++){
-		ret = codeflash_get_by_code(code[i], &flash_data);
-		ESP_ERROR_CHECK(ret);
-		printf("Get by code: %ld %s %i\n",flash_data.code,flash_data.cron,flash_data.cron_length);
-	}
-	int cnt = 0;
-	for(int i = 0; i < 5; i++){
-		print_codeflash_data(0,256,0);
-		print_codeflash_data(0,256,1);
-		cnt += 256;
-	}
+void test_read(){
+	char data_pr[100];
+	esp_partition_read(g_partition_state.active_partition, 0, data_pr, 100);
+	printf("Flash data from 0:\n");
+	for(int i = 0; i < 100; i++)
+		printf("%x:",data_pr[i]);
+	printf("\n");
+	esp_err_t ret;
+	unsigned long key_code = 0;
+	codeflash_t data;
+    int n = 1;
+	printf("Start test_read:\n");
+	ret = codeflash_get_by_code(0, &data);
+	if(ret != ESP_ERR_NOT_FOUND)
+		printf("Err! code: %i [%i]\n",ret,n++);
+	ret = codeflash_get_by_code(19, &data);
+		if(ret != ESP_OK)
+			printf("Err! code: %i [%i]\n",ret,n++);
+		else
+			printf("Found data: [%s]\n",data.crons);
+
+	ret = codeflash_get_by_code(key_code, NULL);
+	if(ret != ESP_ERR_INVALID_ARG)
+		printf("Err! code: %i [%i]\n",ret,n++);
+	ret = codeflash_get_by_code(MAX_VALUE(unsigned long), &data);
+	if(ret != ESP_ERR_INVALID_ARG)
+		printf("Err! code: %i [%i]\n",ret,n++);
+	ret = codeflash_get_by_code(MAX_VALUE(unsigned long) - 1, &data);
+	if(ret != ESP_ERR_NOT_FOUND)
+		printf("Err! code: %i [%i]\n",ret,n++);
+	printf("End test_read\n");
 }
 
 void test_codeflash_init(){
 	printf("Run init test\n");
 	esp_err_t ret;
+	unsigned long key_code;
+	codeflash_t data;
 	ret = codeflash_init();
 	ESP_ERROR_CHECK(ret);
-	vTaskDelay(3000 / portTICK_RATE_MS);
+	// Write data in it...
+	TickType_t tick_start, tick_end;
+	uint32_t tick_diff;
+	TaskHandle_t task_handler;
+
+	xTaskCreate(test_write_data_task, "test_write_task", 65546, NULL, 8, &task_handler);
+	//vTaskDelay(2000 / portTICK_RATE_MS);
+
+	key_code = g_partition_state.active_first_free_offset - 19;
+
+	printf("Active first free offset = %i\n",g_partition_state.active_first_free_offset);
+	printf("Inactive first free offset = %i\n",g_partition_state.inactive_first_free_offset);
+	printf("Active name: %s\n",g_partition_state.active_partition->label);
+	vTaskDelay(2000 / portTICK_RATE_MS);
+	vTaskPrioritySet(xTaskGetCurrentTaskHandle(), 15);				// Measure read time
+	tick_start = xTaskGetTickCount();
+	ret = codeflash_get_by_code(key_code, &data);
+	tick_end = xTaskGetTickCount();
+	vTaskPrioritySet(xTaskGetCurrentTaskHandle(), 5);
+	tick_diff = (uint32_t)((tick_end - tick_start) / portTICK_RATE_MS);
+	ESP_LOGI(__func__,"codeflash_get_by_code retval:'%x'",ret);
+	ESP_LOGI(__func__,"Execute codeflash_get_by_code, took '%i'ms",tick_diff);
+	ESP_LOGI(__func__,"'%i ticks",tick_end - tick_start);
+	test_read();
 }
 
 void test_codeflash_nvs_reset(){

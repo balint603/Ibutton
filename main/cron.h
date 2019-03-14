@@ -15,7 +15,11 @@
  *  7 bits for wday
  */
 
+#define SEPARATOR ';'
+#define CRON_MAX_SIZE 256
+
 #define CBIT(t)		(1 << (t))
+
 
 typedef struct {
 	unsigned long minutes[2];	/* 60 bits worth 16B */
@@ -52,6 +56,8 @@ int check_domain(Evmask *t, Evmask *m);
 char *getdatespec(char *cron_s, Evmask *time_mask);
 
 void tmtoEvmask(struct tm *, Evmask*);
+
+int checkcrons(char *crons_s, struct tm time, int cron_length);
 
 char *firstnonblank(char*);
 void error(char*,...);
