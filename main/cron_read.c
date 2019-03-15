@@ -15,6 +15,8 @@
 
 #include "cron.h"
 
+#define CRON_TEST
+
 typedef void (*ef)(Evmask*,int);
 
 /* a constraint defines part of a time spec.
@@ -245,15 +247,24 @@ checkcrons(char *crons_s, struct tm time, int cron_length)
 
 	if(crons_s == NULL || cron_length == 0)	// No crons.
 		return 1;
-	tmtoEvmask(&time, &mask_time);
+#ifdef CRON_TEST
+	printf("Got crons:[%s]\n",crons_s);
+	printf("Got time: %i,%i,%i,%i,%i\n",time.tm_min, time.tm_hour, time.tm_mday, time.tm_mon, time.tm_wday);
+#endif
+	tmtoEvmask(&time, &mask_time);	// Convert tm struct into mask
 	strcpy(cron,crons_s);
 	while(cron_length > 0){
 		cron_next = split_crons(cron_cur, &cron_length);
-		if(cron_next == NULL)
-			return 0;	// End of domain / Null parameter
-		getdatespec(cron_cur, &mask_cron);
+#ifdef CRON_TEST
+		printf("cron_next val=%s\n",cron_next == NULL ? "NULL" : cron_next);
+		printf("Check this cron:[%s]\n",cron_cur == NULL ? "NULL" : cron_cur);
+#endif
+		getdatespec(cron_cur, &mask_cron);	// Convert string into mask
 		if(check_domain(&mask_time, &mask_cron))
 			return 1;									// In domain
+		if(cron_next == NULL)
+			return 0;	// End of domain / Null parameter
+
 		cron_cur = cron_next;
 	}
 	return 0;	// Not found a domain fitted in

@@ -18,8 +18,11 @@
 #include "nvs.h"
 #include "nvs_flash.h"
 
-
 #include "codeflash.h"
+
+#ifdef TEST_COMMANDS
+#include "ib_reader.h"
+#endif
 
 #define MAX_VALUE(a) (((unsigned long long)1 << (sizeof(a) * CHAR_BIT)) - 1)
 #define SIZE_OF_CRON_LENGTH_AND_CODE 9
@@ -333,8 +336,15 @@ esp_err_t codeflash_get_by_code(unsigned long code, codeflash_t *data_f){
 	}	// End of the list?
 	return ESP_ERR_NOT_FOUND;
 }
-
+/************************************************************************************************************/
 #ifdef TEST_COMMANDS
+
+void long_to_str(unsigned long l, char *data){
+	for(int i = 0; i < 8; i++){
+		*(data+i) = (unsigned char) l;
+		l >>= 8;
+	}
+}
 
 void print_codeflash_data(size_t offset, size_t length, int from_inactive){
 	uint8_t buffer[length];
@@ -356,26 +366,37 @@ void print_codeflash_data(size_t offset, size_t length, int from_inactive){
 	printf("\n");
 }
 
-void test_codeflash_write(){
-	printf("Run write test\n");
+void test_read(){
+	char data_pr[100];
+	esp_partition_read(g_partition_state.active_partition, 0, data_pr, 100);
+	printf("Flash data from 0:\n");
+	for(int i = 0; i < 100; i++)
+		printf("%x:",data_pr[i]);
+	printf("\n");
 	esp_err_t ret;
-	char cron_data[] = "45 20-22 * * 1-5";
-	const int data_size = 1 * 9 + 1 * (strlen(cron_data) + 1);
-	char data[data_size];
-	int data_cnt = 1;
-	unsigned long code;
+	unsigned long key_code = 0;
+	codeflash_t data;
+    int n = 1;
+	printf("Start test_read:\n");
+	ret = codeflash_get_by_code(0, &data);
+	if(ret != ESP_ERR_NOT_FOUND)
+		printf("Err! code: %i [%i]\n",ret,n++);
+	ret = codeflash_get_by_code(19, &data);
+		if(ret != ESP_OK)
+			printf("Err! code: %i [%i]\n",ret,n++);
+		else
+			printf("Found data: [%s]\n",data.crons);
 
-	code = 448532016;
-	data[0] = (char)data_size;
-	strcpy(&data[9],cron_data);
-	for(int j = 8; j > 0; j--){
-		data[data_cnt++] = (unsigned char)code;
-		code >>= 8;
-	}
-	ret = codeflash_append_raw_data(data, data_size, 0);
-	if(ret != ESP_OK){
-		ESP_LOGE(__func__,"Append ret='%x'",ret);
-	}
+	ret = codeflash_get_by_code(key_code, NULL);
+	if(ret != ESP_ERR_INVALID_ARG)
+		printf("Err! code: %i [%i]\n",ret,n++);
+	ret = codeflash_get_by_code(MAX_VALUE(unsigned long), &data);
+	if(ret != ESP_ERR_INVALID_ARG)
+		printf("Err! code: %i [%i]\n",ret,n++);
+	ret = codeflash_get_by_code(MAX_VALUE(unsigned long) - 1, &data);
+	if(ret != ESP_ERR_NOT_FOUND)
+		printf("Err! code: %i [%i]\n",ret,n++);
+	printf("End test_read\n");
 }
 
 TaskFunction_t test_write_data_task(){
@@ -417,47 +438,11 @@ TaskFunction_t test_write_data_task(){
 	return 0;
 }
 
-void test_read(){
-	char data_pr[100];
-	esp_partition_read(g_partition_state.active_partition, 0, data_pr, 100);
-	printf("Flash data from 0:\n");
-	for(int i = 0; i < 100; i++)
-		printf("%x:",data_pr[i]);
-	printf("\n");
-	esp_err_t ret;
-	unsigned long key_code = 0;
-	codeflash_t data;
-    int n = 1;
-	printf("Start test_read:\n");
-	ret = codeflash_get_by_code(0, &data);
-	if(ret != ESP_ERR_NOT_FOUND)
-		printf("Err! code: %i [%i]\n",ret,n++);
-	ret = codeflash_get_by_code(19, &data);
-		if(ret != ESP_OK)
-			printf("Err! code: %i [%i]\n",ret,n++);
-		else
-			printf("Found data: [%s]\n",data.crons);
-
-	ret = codeflash_get_by_code(key_code, NULL);
-	if(ret != ESP_ERR_INVALID_ARG)
-		printf("Err! code: %i [%i]\n",ret,n++);
-	ret = codeflash_get_by_code(MAX_VALUE(unsigned long), &data);
-	if(ret != ESP_ERR_INVALID_ARG)
-		printf("Err! code: %i [%i]\n",ret,n++);
-	ret = codeflash_get_by_code(MAX_VALUE(unsigned long) - 1, &data);
-	if(ret != ESP_ERR_NOT_FOUND)
-		printf("Err! code: %i [%i]\n",ret,n++);
-	printf("End test_read\n");
-}
-
-void test_codeflash_init(){
+void test_codeflash_write(){
 	printf("Run init test\n");
 	esp_err_t ret;
 	unsigned long key_code;
 	codeflash_t data;
-	ret = codeflash_init();
-	ESP_ERROR_CHECK(ret);
-	// Write data in it...
 	TickType_t tick_start, tick_end;
 	uint32_t tick_diff;
 	TaskHandle_t task_handler;
@@ -481,6 +466,59 @@ void test_codeflash_init(){
 	ESP_LOGI(__func__,"Execute codeflash_get_by_code, took '%i'ms",tick_diff);
 	ESP_LOGI(__func__,"'%i ticks",tick_end - tick_start);
 	test_read();
+
+}
+
+void test_crons(unsigned long *code, char *crons, struct tm time_esp){
+	if(!(crons && code))
+		return;
+	esp_err_t ret;
+	int ret_i;
+	int i = 0;
+	uint8_t length_crons = strlen(crons) + 1;
+	uint8_t length_data = length_crons + 9;
+	char data[300];
+
+	data[i] = (char)length_crons;	// First byte is length of the crons
+	long_to_str(*code, &data[1]);
+	strcpy(&data[9],crons);
+	ret = codeflash_append_raw_data(data, length_data, 0);
+	if(ESP_OK != ret){
+		ESP_LOGE(__func__,"append data err='%x'",ret);
+	}
+	print_codeflash_data(0, 100, 0);
+
+	ret_i = key_code_lookup(*code, time_esp);
+	printf("Code:[%ld], Access=%i\n",*code,ret_i);
+	(*code)++;
+}
+
+void test_codeflash_init(){
+	printf("Run init test\n");
+	esp_err_t ret;
+	unsigned long key_code;
+	ret = codeflash_init();
+	ESP_ERROR_CHECK(ret);
+	struct tm time_esp;
+
+	time_esp.tm_min = 40;
+	time_esp.tm_hour = 9;
+	time_esp.tm_mday = 1;
+	time_esp.tm_mon = 3;
+	time_esp.tm_wday = 5;
+
+	unsigned long code = 13;
+	const char *cron_data[3];
+	cron_data[0] = "* 9-11 * * 1-5";
+	cron_data[1] = "40-59 9-11 * * 1-5";
+	cron_data[2] = "* * * * 1-4";
+
+	printf("Test Crons: [%s] [%s] [%s]\n",cron_data[0],cron_data[1],cron_data[2]);
+
+	for(int i = 0; i < 3; i++){
+		test_crons(&code, cron_data[i], time_esp);
+	}
+
 }
 
 void test_codeflash_nvs_reset(){

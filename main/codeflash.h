@@ -14,9 +14,9 @@
  * 		|__|________________|_____________       ___|
  *       ^                           ^
  	 	 |							 |
- *    cron_length [1B]				 |
+ *    crons_length [1B]				 |
  * 	  -value range: 0 - 254			 |
- * 	  								 |
+ * 	  -including '\0'								 |
  * 	  code                           |
  * 	  -iButton serial number         |
  * 	  								 |

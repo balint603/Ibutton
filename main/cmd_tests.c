@@ -83,6 +83,8 @@ void register_tests(){
 				.func = &test_codeflash_nvs_reset,
 		};
 		ESP_ERROR_CHECK(esp_console_cmd_register(&cmd4));
+
+		// todo argtable!
 	const esp_console_cmd_t cmd5 = {
 				.command = "test_set_time",
 				.help = "<MIN> <H> <D> <M> <WD>",

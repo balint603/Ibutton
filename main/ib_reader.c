@@ -153,19 +153,18 @@ struct tm get_esp_time(){
  * */
 int key_code_lookup(unsigned long code, struct tm t_struct){
 	esp_err_t ret;
-	codeflash_t *data;
+	codeflash_t data;
 
 	ret = codeflash_get_by_code(code, &data);
-	if(ret != ESP_OK)
-		return 1;
+	if(ret == ESP_OK){
+		ret = checkcrons(data.crons, t_struct, data.crons_length);
+		if(ret)
+			return 1;
+	}
 	else if(ret == ESP_ERR_NOT_FOUND)
 		{ESP_LOGW(__func__,"Code not found!");}
 	else
 		{ESP_LOGW(__func__,"codeflash_get_by_code ret=%x",ret);}
-
-	ret = checkcrons(data->crons, t_struct, data->crons_length);
-	if(ret)
-		return 1;
 	return 0;
 }
 
