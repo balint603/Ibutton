@@ -1,7 +1,5 @@
-# Type 0x40 is a database to store iButton key codes.
 # Name,     Type,       Subtype,    Offset,     Size,       Flags
 nvs,        data,       nvs,        0x9000,     0x6000,
 phy_init,   data,       phy,        0xf000,     0x1000,
 factory,    app,        factory,    0x10000,    1M,
-A_codefl,   0x40,       ,           ,           512K,
-B_codefl,   0x40,       ,           ,           512K,
+storage,    data,       spiffs,           ,     1536K,

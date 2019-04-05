@@ -49,7 +49,7 @@ esp_err_t codeflash_check_data(void *data, size_t length);
 esp_err_t codeflash_append_raw_data(void *data, size_t length, int into_inactive);
 esp_err_t codeflash_get_by_code(unsigned long code, codeflash_t *data_f);
 
-#define TEST_COMMANDS
+//#define TEST_COMMANDS
 
 #ifdef TEST_COMMANDS
 void test_codeflash_init();

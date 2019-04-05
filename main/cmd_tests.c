@@ -37,24 +37,7 @@ static struct {
     struct arg_end *end;
 } time_args;
 
-int test_set_time(int argc, char **argv){
-	int nerrors = arg_parse(argc, argv, (void**) &time_args);
-	if (nerrors != 0) {
-		arg_print_errors(stderr, time_args.end, argv[0]);
-		return 1;
-	}
-	struct tm time_esp;
-	time_esp.tm_hour = time_args.hour->ival[0];
-	time_esp.tm_mday = time_args.day->ival[0];
-	time_esp.tm_min = time_args.min->ival[0];
-	time_esp.tm_mon = time_args.month->ival[0];
-	time_esp.tm_wday = time_args.wday->ival[0];
-
-	set_esp_time(&time_esp);
-
-	return 0;
-}
-
+#ifdef TEST_COMMANDS
 void register_tests(){
 	const esp_console_cmd_t cmd = {
 			.command = "test_codeflash_init",
@@ -83,13 +66,5 @@ void register_tests(){
 				.func = &test_codeflash_nvs_reset,
 		};
 		ESP_ERROR_CHECK(esp_console_cmd_register(&cmd4));
-
-		// todo argtable!
-	const esp_console_cmd_t cmd5 = {
-				.command = "test_set_time",
-				.help = "<MIN> <H> <D> <M> <WD>",
-				.func = &test_set_time,
-				.argtable = &time_args
-		};
-		ESP_ERROR_CHECK(esp_console_cmd_register(&cmd5));
 }
+#endif

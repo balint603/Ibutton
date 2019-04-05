@@ -237,7 +237,7 @@ split_crons(char *crons_s, int *length){
  *  \ret 1 in a domain
  * */
 int
-checkcrons(char *crons_s, struct tm time, int cron_length)
+checkcrons(char *crons_s, struct tm *time, int cron_length)
 {
 	char cron[256];
 	char *cron_next;
@@ -249,9 +249,10 @@ checkcrons(char *crons_s, struct tm time, int cron_length)
 		return 1;
 #ifdef CRON_TEST
 	printf("Got crons:[%s]\n",crons_s);
-	printf("Got time: %i,%i,%i,%i,%i\n",time.tm_min, time.tm_hour, time.tm_mday, time.tm_mon, time.tm_wday);
+	printf("Got time: %i,%i,%i,%i,%i\n",time->tm_min, time->tm_hour,
+			time->tm_mday, time->tm_mon, time->tm_wday);
 #endif
-	tmtoEvmask(&time, &mask_time);	// Convert tm struct into mask
+	tmtoEvmask(time, &mask_time);	// Convert tm struct into mask
 	strcpy(cron,crons_s);
 	while(cron_length > 0){
 		cron_next = split_crons(cron_cur, &cron_length);

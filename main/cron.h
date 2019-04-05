@@ -57,7 +57,7 @@ char *getdatespec(char *cron_s, Evmask *time_mask);
 
 void tmtoEvmask(struct tm *, Evmask*);
 
-int checkcrons(char *crons_s, struct tm time, int cron_length);
+int checkcrons(char *crons_s, struct tm *time, int cron_length);
 
 char *firstnonblank(char*);
 void error(char*,...);

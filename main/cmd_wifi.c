@@ -12,6 +12,7 @@
 #include "cmd_wifi.h"
 #include "nvs.h"
 #include "nvs_flash.h"
+#include "ib_sntp.h"
 
 #define true 1
 #define false 0
@@ -43,6 +44,7 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
     case SYSTEM_EVENT_STA_GOT_IP:
         xEventGroupSetBits(wifi_event_group, CONNECTED_BIT);
         gpio_set_level(GPIO_NUM_2, 1);
+        ib_sntp_obtain_time();
         break;
     case SYSTEM_EVENT_STA_DISCONNECTED:
         gpio_set_level(GPIO_NUM_2, 0);
@@ -70,6 +72,7 @@ static void initialise_wifi(void)
     ESP_ERROR_CHECK( esp_wifi_set_storage(WIFI_STORAGE_RAM) );
     ESP_ERROR_CHECK( esp_wifi_set_mode(WIFI_MODE_NULL) );
     ESP_ERROR_CHECK( esp_wifi_start() );
+    esp_wifi_set_ps(WIFI_PS_NONE);
     initialized = true;
 }
 /**\brief Saves the actual config of the WiFi.

@@ -86,6 +86,7 @@ TaskFunction_t cmd_task(){
 }
 
 void start_console(){
+	int i = 0;
 	TaskHandle_t cmd_handler;
 	const char task_name[] = "cmd task";
 

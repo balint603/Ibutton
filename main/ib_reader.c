@@ -17,7 +17,7 @@
  * 		- queues to perform communications between the input generators and the state machine,
  */
 
-#include "../main/ib_reader.h"
+#include "ib_reader.h"
 
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
@@ -29,8 +29,8 @@
 #include "time.h"
 
 #include "ibutton.h"
-#include "codeflash.h"
 #include "cron.h"
+#include "/home/major/Documents/ESP32/Workbench/Test_ib_database/main/ib_database.h"
 
 /** Input types of the state machine */
 typedef enum inputs {
@@ -51,13 +51,12 @@ typedef enum infos {
 } infos_t;
 
 /** Configuration settings */
-typedef struct ib_data{
+typedef struct ib_conf{
 	unsigned long su_key;
 	unsigned int opening_time;
 	unsigned int mode;
 	unsigned int button_enable;
-	struct tm time_local;
-} ib_data_t;
+} ib_conf_t;
 
 /** Operation mode types */
 #define MODE_NORMAL 0
@@ -106,7 +105,7 @@ static void check_touch(inputs_t input);
 
 volatile uint32_t initialized;
 
-ib_data_t g_data = {
+ib_conf_t g_data = {
 		.opening_time = STANDARD_OPENING_TIME
 };
 ib_handlers g_handlers;
@@ -134,37 +133,29 @@ static int is_su_mode_enable(){
 	return gpio_get_level(PIN_SU_ENABLE);
 }
 
-void set_esp_time(struct tm *new_time){
-	g_data.time_local.tm_hour = new_time->tm_hour;
-	g_data.time_local.tm_mday = new_time->tm_mday;
-	g_data.time_local.tm_min = new_time->tm_min;
-	g_data.time_local.tm_mon = new_time->tm_mon;
-	g_data.time_local.tm_wday = new_time->tm_wday;
-}
-
-struct tm get_esp_time(){
-	return g_data.time_local;
-}
-
 /** \brief Search key and check cron.
  *  \ret 0 key is not in the database or out of the time domains
  *  \ret 1 access allow
  *
  * */
-int key_code_lookup(unsigned long code, struct tm t_struct){
-	esp_err_t ret;
+int key_code_lookup(unsigned long code){
+	/*esp_err_t ret;
 	codeflash_t data;
+	time_t time_raw;
+	struct tm time_info;
 
 	ret = codeflash_get_by_code(code, &data);
 	if(ret == ESP_OK){
-		ret = checkcrons(data.crons, t_struct, data.crons_length);
+		time(&time_raw);
+		localtime_r(&time_raw,&time_info);
+		ret = checkcrons(data.crons, &time_info, data.crons_length);
 		if(ret)
 			return 1;
 	}
 	else if(ret == ESP_ERR_NOT_FOUND)
 		{ESP_LOGW(__func__,"Code not found!");}
 	else
-		{ESP_LOGW(__func__,"codeflash_get_by_code ret=%x",ret);}
+		{ESP_LOGW(__func__,"codeflash_get_by_code ret=%x",ret);}*/
 	return 0;
 }
 
@@ -176,7 +167,7 @@ int key_code_lookup(unsigned long code, struct tm t_struct){
 static void key_touched_event(unsigned long code){
 	inputs_t input;
 // todo search from memory and make decision
-	if(key_code_lookup(code, g_data.time_local))
+	if(key_code_lookup(code))
 		input = input_touched;
 	else if(448522168 == code)
 		input = input_touched;

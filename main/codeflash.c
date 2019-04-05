@@ -469,7 +469,7 @@ void test_codeflash_write(){
 
 }
 
-void test_crons(unsigned long *code, char *crons, struct tm time_esp){
+void test_crons(unsigned long *code, char *crons){
 	if(!(crons && code))
 		return;
 	esp_err_t ret;
@@ -488,7 +488,7 @@ void test_crons(unsigned long *code, char *crons, struct tm time_esp){
 	}
 	print_codeflash_data(0, 100, 0);
 
-	ret_i = key_code_lookup(*code, time_esp);
+	ret_i = key_code_lookup(*code);
 	printf("Code:[%ld], Access=%i\n",*code,ret_i);
 	(*code)++;
 }
@@ -500,13 +500,13 @@ void test_codeflash_init(){
 	ret = codeflash_init();
 	ESP_ERROR_CHECK(ret);
 	struct tm time_esp;
-
+/*
 	time_esp.tm_min = 40;
 	time_esp.tm_hour = 9;
 	time_esp.tm_mday = 1;
 	time_esp.tm_mon = 3;
 	time_esp.tm_wday = 5;
-
+	*/
 	unsigned long code = 13;
 	const char *cron_data[3];
 	cron_data[0] = "* 9-11 * * 1-5";
@@ -516,7 +516,7 @@ void test_codeflash_init(){
 	printf("Test Crons: [%s] [%s] [%s]\n",cron_data[0],cron_data[1],cron_data[2]);
 
 	for(int i = 0; i < 3; i++){
-		test_crons(&code, cron_data[i], time_esp);
+		test_crons(&code, cron_data[i]);
 	}
 
 }
