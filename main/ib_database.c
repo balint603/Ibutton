@@ -34,7 +34,7 @@ const char *READ_CSV_PARAM = 		"r";
 
 
 /** ret 0 no info file */
-int get_checksum(info_t *d) {
+int ibd_get_checksum(info_t *d) {
 	FILE *fptr = fopen(FILE_INFO,"rb");
 	if ( !fptr )
 		return 0;
@@ -44,7 +44,7 @@ int get_checksum(info_t *d) {
 }
 
 /** \ret 1 fwrite error or fopen return null */
-int save_checksum(info_t *d) {
+int ibd_save_checksum(info_t *d) {
 	FILE *fptr = NULL;
 	remove(FILE_INFO);
 	fptr = fopen(FILE_INFO,"wb");
@@ -81,10 +81,10 @@ esp_err_t ibd_append_csv_file(char *data, int *data_length, uint64_t checksum) {
 	FILE *fptr;
 	info_t checks;
 	struct stat fstat;
-	if ( get_checksum(&checks) ) {
+	if ( ibd_get_checksum(&checks) ) {
 		if (checks.checksum_csv != checksum) {
 			checks.checksum_csv = checksum;
-			save_checksum(&checks);
+			ibd_save_checksum(&checks);
 			if ( !stat(FILE_CSV,&fstat) ) {
 				unlink(FILE_CSV);
 			}
@@ -114,7 +114,7 @@ static void activate_database() {
 	esp_err_t ret;
 	info_t checks;
 	struct stat filestat;
-	get_checksum(&checks);
+	ibd_get_checksum(&checks);
 
 	if ( (stat(FILE_DB_TEMP, &filestat)) )  {
 		ESP_LOGW(__func__,"File does not exist:%s",FILE_DB_TEMP);
@@ -130,7 +130,7 @@ static void activate_database() {
 		}
 		checks.checksum_cur = checks.checksum_temp;
 		checks.checksum_temp = 0;
-		if ( save_checksum(&checks) ) {
+		if ( ibd_save_checksum(&checks) ) {
 			ESP_LOGE(__func__,"Checksum cannot be saved");
 		}
 	}
@@ -204,8 +204,8 @@ esp_err_t ibd_init() {
 	info_t info = {.checksum_temp = 0, .checksum_csv = 0, .checksum_cur = 0};
 	if ( !esp_spiffs_mounted(IBD_PARTITION_LABEL) )
 		return ESP_ERR_NOT_FOUND;
-	if ( !get_checksum(&info) )					// Checksum reserve its place
-		save_checksum(&info);
+	if ( !ibd_get_checksum(&info) )					// Checksum reserve its place
+		ibd_save_checksum(&info);
 	fptr = fopen(FILE_DB_TEMP,"rb");
 	if ( fptr ) {
 		remove(FILE_DB_TEMP);
@@ -345,7 +345,7 @@ static FILE *select_file_to_write() {
 	const char *fparam;
 	info_t checks;
 	uint64_t *checksum_val;
-	if ( !get_checksum(&checks) ) {
+	if ( !ibd_get_checksum(&checks) ) {
 		ESP_LOGE(__func__,"Cannot open checksum file!");
 		return NULL;
 	}
@@ -365,7 +365,7 @@ static FILE *select_file_to_write() {
 		fparam = APPEND_PARAM;
 	}
 	fclose(fptr);
-	if ( save_checksum(&checks) ) {
+	if ( ibd_save_checksum(&checks) ) {
 		ESP_LOGE(__func__,"Cannot save checksum!");
 		return NULL;
 	}
@@ -476,7 +476,7 @@ static esp_err_t process_csv_to_bin(FILE *fcsv, FILE *fbin, uint32_t *linecnt) {
  *  		IBD_ERR_NOT_FOUND when FILE_PATH file cannot be opened
  *  		IBD_ERR_DATA file processing stopped
  * */
-esp_err_t ibd_make_bin_database(const char *FILE_PATH) {
+esp_err_t ibd_make_bin_database() {
 	FILE *fptr_bin;
 	FILE *fptr_csv;
 	esp_err_t ret;
@@ -487,15 +487,15 @@ esp_err_t ibd_make_bin_database(const char *FILE_PATH) {
 		ESP_LOGE(__func__,"File cannot be opened!"); // sterror?
 		return IBD_ERR_FILE_OPEN;
 	}
-	if ( !FILE_PATH ) {
+	if ( !FILE_CSV ) {
 		ESP_LOGE(__func__,"File path NULL");
 		return IBD_ERR_INVALID_PARAM;
 	}
-	if ( !(fptr_csv = fopen(FILE_PATH, READ_CSV_PARAM)) ) {
-		ESP_LOGE(__func__,"File cannot be opened!:%s",FILE_PATH); // sterror?
+	if ( !(fptr_csv = fopen(FILE_CSV, READ_CSV_PARAM)) ) {
+		ESP_LOGE(__func__,"File cannot be opened!:%s",FILE_CSV); // sterror?
 		return IBD_ERR_NOT_FOUND;
 	}
-	ESP_LOGD(__func__,"Start reading path: [%s]",FILE_PATH);
+	ESP_LOGD(__func__,"Start reading path: [%s]",FILE_CSV);
 	ret = process_csv_to_bin(fptr_csv, fptr_bin, &line);
 	fclose(fptr_bin);
 	fclose(fptr_csv);

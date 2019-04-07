@@ -32,6 +32,8 @@
 #include "cron.h"
 #include "/home/major/Documents/ESP32/Workbench/Test_ib_database/main/ib_database.h"
 
+#define TAG "IB_READER"
+
 /** Input types of the state machine */
 typedef enum inputs {
     input_touched,
@@ -138,24 +140,32 @@ static int is_su_mode_enable(){
  *  \ret 1 access allow
  *
  * */
-int key_code_lookup(unsigned long code){
-	/*esp_err_t ret;
-	codeflash_t data;
+int key_code_lookup(uint64_t code){
+	esp_err_t ret;
+	ib_data_t *data = NULL;
 	time_t time_raw;
 	struct tm time_info;
 
-	ret = codeflash_get_by_code(code, &data);
-	if(ret == ESP_OK){
+	ret = ibd_get_by_code(code, &data);
+	if(ret == IBD_FOUND){
+		if ( !data ) {
+			ESP_LOGE(__func__, "Object ptr null");
+			return 0;
+		}
 		time(&time_raw);
-		localtime_r(&time_raw,&time_info);
-		ret = checkcrons(data.crons, &time_info, data.crons_length);
-		if(ret)
-			return 1;
+		localtime_r(&time_raw, &time_info);
+		ret = checkcrons(data->crons, &time_info, sizeof(data->crons));
+		if ( ret ) {
+			ESP_LOGI(TAG, "Key gained access");
+		} else {
+			ESP_LOGW(TAG, "Key out of time-domain");
+		}
+		return ret;
 	}
-	else if(ret == ESP_ERR_NOT_FOUND)
-		{ESP_LOGW(__func__,"Code not found!");}
+	else if(ret == IBD_ERR_NOT_FOUND)
+		{ESP_LOGW(__func__,"Key not found!");}
 	else
-		{ESP_LOGW(__func__,"codeflash_get_by_code ret=%x",ret);}*/
+		{ESP_LOGW(__func__,"ibd_get_by_code errcode:%x",ret);}
 	return 0;
 }
 
@@ -164,12 +174,10 @@ int key_code_lookup(unsigned long code){
  *  It looks up the key in the database
  * and makes a decision which input must be generated.
  * */
-static void key_touched_event(unsigned long code){
+static void key_touched_event(uint64_t code){
 	inputs_t input;
 // todo search from memory and make decision
 	if(key_code_lookup(code))
-		input = input_touched;
-	else if(448522168 == code)
 		input = input_touched;
 	else
 		input = input_invalid_touched;
@@ -195,8 +203,7 @@ TaskFunction_t ib_reader_task(void *pvParam){
 				30000, pdFALSE, 0, timeout_callback);
 
 
-	unsigned long ibutton_code;
-	inputs_t input;
+	uint64_t ibutton_code;
 	inputs_t input_incoming;
 	int button_prev_state = 0;
 
@@ -206,7 +213,7 @@ TaskFunction_t ib_reader_task(void *pvParam){
 		if( !gpio_get_level(PIN_BUTTON)){
 			if(!button_prev_state){
 				g_handlers.fsm_state(input_button);
-				printf("Button pressed\n");
+				ESP_LOGD(TAG,"Button pressed");
 			}
 			button_prev_state = 1;
 		}
@@ -214,16 +221,16 @@ TaskFunction_t ib_reader_task(void *pvParam){
 			if(pdTRUE == g_enable_reader){
 				switch (ib_read_code(&ibutton_code)) {
 					case IB_OK:
-						printf("READ: Code: %lu\n",ibutton_code);
+						ESP_LOGD(TAG,"READ: Code: %llu",ibutton_code);
 						if(pdPASS == xTimerReset(reader_tim,0))
 							g_enable_reader = pdFALSE;
 							key_touched_event(ibutton_code);
 						break;
 					case IB_FAM_ERR:
-						printf("READ: Family code err\n");
+						ESP_LOGD(TAG,"Family code");
 						break;
 					case IB_CRC_ERR:
-						printf("READ: CRC err\n");
+						ESP_LOGD(TAG,"Invalid crc");
 						break;
 					default:
 						break;
@@ -250,15 +257,15 @@ TaskFunction_t ib_info_task(void *pvParam){
 		if(blink_none == info_state){
 			if(pdPASS == xQueueReceive(g_handlers.info_q,&info_state,portMAX_DELAY)){
 				led_out_state = GPIO_MODE_OUTPUT;
-				printf("infoqueue got\n");
+				ESP_LOGD(TAG,"infoqueue got");
 			}
 		}
 		else{
 			if(pdPASS == xQueueReceive(g_handlers.info_q,&info_state,delay_ms / portTICK_RATE_MS)){
 				led_out_state = GPIO_MODE_OUTPUT;
-				printf("infoqueue got during blinking\n");
+				ESP_LOGD(TAG,"infoqueue got during blinking");
 			}
-			printf("time to blink\n");
+			ESP_LOGD(TAG,"Time to blink it");
 		}
 		switch(info_state) {
 			case blink_both:
@@ -267,7 +274,6 @@ TaskFunction_t ib_info_task(void *pvParam){
 				delay_ms = 500;
 				break;
 			case blink_green:
-				printf("blink it!\n");
 				LED_GREEN(led_out_state);
 				delay_ms = 500;
 				break;
@@ -405,7 +411,7 @@ static void check_touch(inputs_t input){
 			if(is_su_mode_enable()){
 				send_info(blink_green);
 				switch_state_to(su_mode);
-				printf("Touched su\n");
+				ESP_LOGD(TAG,"Touched su");
 				break;
 			}
 			else{
@@ -428,7 +434,7 @@ static void check_touch(inputs_t input){
 					g_handlers.fsm_state = access_allow;
 					break;
 			}
-			printf("Touched\n");
+			ESP_LOGD(TAG,"Touched\n");
 			break;
 		case input_button:
 			LED_GREEN(OFF);

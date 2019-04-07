@@ -73,7 +73,7 @@ static void send_byte(uint8_t data){
 
 /** \brief Reads a byte.
  *  Must called just after the command byte has been sent out.
- *  \ret unsigned unsigned long ibutton code.
+ *  \ret uint64_t ibutton code.
  * */
 static uint8_t read_byte(){
 	uint8_t byte = 0;
@@ -113,15 +113,22 @@ int ib_presence(){
 	return line_level_tmp ? 0 : 1;
 }
 
-/** \brief uint8_t array to unsigned long conversion. * */
-static unsigned long bytes_to_code(uint8_t *data){
-	unsigned long code_val = 0;
+/** \brief uint8_t array to uint64_t conversion. * */
+static uint64_t bytes_to_code(uint8_t *data){
+	uint64_t code_val = 0;
 	if(!data)
 		return code_val;
-	for(int i = 6; i > 0; i--){
+#if BYTE_ORDER_LSB_IS_FAMILY_CODE
+	for(int i = 7; i >= 0; i--) {
 		code_val <<= 8;
-		code_val |= (unsigned long)*(data+i);
+		code_val |= (uint64_t)*(data+i);
 	}
+#else
+	for(int i = 0; i < 8; i++) {
+		code_val <<= 8;
+		code_val |= (uint64_t)*(data+i);
+	}
+#endif
 	return code_val;
 }
 
@@ -133,8 +140,7 @@ static unsigned long bytes_to_code(uint8_t *data){
  * \ret IB_CRC_ERR when CRC error.
  * \ret IB_FAM_ERR when the family code does not match.
  * */
-ib_ret_t ib_read_code(unsigned long *ib_code){
-	uint8_t crc = 0;
+ib_ret_t ib_read_code(uint64_t *ib_code){
 	uint8_t data[8];
 
 	portDISABLE_INTERRUPTS();

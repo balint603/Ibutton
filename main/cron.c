@@ -57,18 +57,6 @@ eat(int sig)
 int
 check_domain(Evmask *t, Evmask *m)
 {
-	printf("m0:%ld\n",t->minutes[0]);
-	printf("m1:%ld\n",t->minutes[1]);
-	printf("m0:%ld\n",m->minutes[0]);		// todo delete this
-	printf("m1:%ld\n",m->minutes[1]);
-	printf("h:%ld\n",t->hours);
-	printf("h:%ld\n",m->hours);
-	printf("mday:%ld\n",t->mday);
-	printf("mday:%ld\n",m->mday);
-	printf("month:%i\n",t->month);
-	printf("month:%i\n",m->month);
-	printf("wday:%i\n",t->wday);
-	printf("wday:%i\n",m->wday);
     if ( ( (t->minutes[0] & m->minutes[0]) || (t->minutes[1] & m->minutes[1]) )
 	&& (t->hours & m->hours)
 	&& (t->mday & m->mday)

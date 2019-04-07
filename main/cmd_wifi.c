@@ -17,9 +17,9 @@
 #define true 1
 #define false 0
 
-const int DEFAULT_TIMEOUT_MS = 8000;
+const int DEFAULT_TIMEOUT_MS = 15000;
 
-static EventGroupHandle_t wifi_event_group;
+EventGroupHandle_t wifi_event_group;
 
 const int CONNECTED_BIT = BIT0;
 
@@ -103,7 +103,6 @@ esp_err_t wifi_restore(){
 	wifi_config_t wifi_config;
 	uint32_t size = sizeof(wifi_config);
 	esp_err_t err = nvs_open(namespace_wifi, NVS_READONLY, &handler);
-	int timeout_ms = 10000;
 
 	if(ESP_OK == err){
 		err = nvs_get_blob(handler, key_wifi_settings, &wifi_config, &size);
@@ -125,13 +124,13 @@ esp_err_t wifi_restore(){
     ESP_ERROR_CHECK( esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config) );
     ESP_ERROR_CHECK( esp_wifi_connect() );
 
-    int bits = xEventGroupWaitBits(wifi_event_group, CONNECTED_BIT,
-            1, 1, timeout_ms / portTICK_PERIOD_MS);
-    if(bits & CONNECTED_BIT){
-    	ESP_LOGW(__func__,"Connection timed out");
+    uint32_t bits = xEventGroupWaitBits(wifi_event_group, CONNECTED_BIT,
+            pdFALSE, pdTRUE, DEFAULT_TIMEOUT_MS / portTICK_PERIOD_MS);
+    if( bits & CONNECTED_BIT ){
+    	ESP_LOGI(__func__,"Connected");
     }
     else{
-    	ESP_LOGI(__func__,"Connected");
+    	ESP_LOGW(__func__,"Connection timed out");
     }
     return ESP_OK;
 }
@@ -154,7 +153,7 @@ static int wifi_join(const char* ssid, const char* pass, int timeout_ms)
     ESP_ERROR_CHECK( esp_wifi_connect() );
 
     int bits = xEventGroupWaitBits(wifi_event_group, CONNECTED_BIT,
-            1, 1, timeout_ms / portTICK_PERIOD_MS);
+            pdFALSE, pdTRUE, timeout_ms / portTICK_PERIOD_MS);
     err = wifi_save(wifi_config);
     if(ESP_OK != err){
     	ESP_LOGE(__func__,"WiFi settings cannot be saved\n code:'%x'",err);
@@ -162,16 +161,14 @@ static int wifi_join(const char* ssid, const char* pass, int timeout_ms)
     else{
     	ESP_LOGI(__func__,"WiFi settings has been saved");
     }
-    return (bits & CONNECTED_BIT) != 0;
+    return (bits & CONNECTED_BIT);
 }
 
 /** \brief Makes the console arguments to WiFi parameters.
  *  \return 0 WiFi connected.
  *  \return 1 WiFi connection error occurs.
  * */
-static int connect(int argc, char** argv)
-{
-	esp_err_t err;
+static int connect(int argc, char **argv) {
     int nerrors = arg_parse(argc, argv, (void**) &join_args);
     if (nerrors != 0) {
         arg_print_errors(stderr, join_args.end, argv[0]);
@@ -180,9 +177,13 @@ static int connect(int argc, char** argv)
     ESP_LOGI(__func__, "Connecting to '%s'",
             join_args.ssid->sval[0]);
 
+    if ( join_args.timeout->count == 0) {
+    	join_args.timeout->ival[0] = DEFAULT_TIMEOUT_MS;
+    }
+
     int connected = wifi_join(join_args.ssid->sval[0],
-                           join_args.password->sval[0],
-                           join_args.timeout->ival[0]);
+                           	  join_args.password->sval[0],
+							  join_args.timeout->ival[0]);
     if (!connected) {
         ESP_LOGW(__func__, "Connection timed out");
         return 1;
@@ -191,10 +192,8 @@ static int connect(int argc, char** argv)
     return 0;
 }
 
-void register_wifi()
-{
+void register_wifi() {
     join_args.timeout = arg_int0(NULL, "timeout", "<t>", "Connection timeout, ms");
-    join_args.timeout->ival[0] = DEFAULT_TIMEOUT_MS; // set default value
     join_args.ssid = arg_str1(NULL, NULL, "<ssid>", "SSID of AP");
     join_args.password = arg_str0(NULL, NULL, "<pass>", "PSK of AP");
     join_args.end = arg_end(2);

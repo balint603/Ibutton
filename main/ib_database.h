@@ -131,8 +131,8 @@ typedef struct __attribute__((__packed__)) info_data{
 } info_t;
 
 /** Get or change the current checksums  */
-int get_checksum(info_t *d);
-int save_checksum(info_t *d);
+int ibd_get_checksum(info_t *d);
+int ibd_save_checksum(info_t *d);
 
 ib_data_t *create_ib_data(uint64_t code, char *crons);
 
@@ -148,7 +148,7 @@ esp_err_t ibd_append_from_str(char *csv, size_t *bytes_left);
 
 esp_err_t ibd_append_csv_file(char *data, int *data_length, uint64_t checksum);
 
-esp_err_t ibd_make_bin_database(const char *FILE_PATH);
+esp_err_t ibd_make_bin_database();
 
 
 
@@ -157,6 +157,8 @@ uint32_t csv_eat_a_line(char *line, int size, char **from);
 ib_data_t *csv_process_line(char *line);
 
 size_t get_file_size(FILE *fptr);
+
+char *str_chomp(char *buf);
 
 #ifdef test_mode
 void test_process_csv();

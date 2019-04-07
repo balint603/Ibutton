@@ -14,6 +14,7 @@
 #include "mqtt_app.h"
 #include "ib_database.h"
 #include "esp_spiffs.h"
+#include "ib_http_client.h"
 
 void spiffs_init() {
 	ESP_LOGI("SPIFF","Initializing...");
@@ -64,6 +65,7 @@ void app_main(){
 	wifi_get_data();
 	initials();
 	start_ib_reader();
+	ib_client_init();
 
 	while(1){
 		gpio_set_level(4, 1);

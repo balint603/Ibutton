@@ -20,8 +20,8 @@
 
 //#define TEST_MODE
 
-#define CODE_FAMILY_MASK 	0xFF00000000000000
-#define CODE_FAMILY 	 	0x0100000000000000
+#define CODE_FAMILY_MASK 	0x00000000000000FF
+#define CODE_FAMILY 	 	0x0000000000000001
 #define CRON_MINIMUM_LEN 	9
 #define CRON_MAXIMUM_SIZE	(IBD_CRON_MAX_SIZE)
 
@@ -105,10 +105,11 @@ ib_data_t *csv_process_line(char *line){
 #endif
 	} while ( cron_str && --fields );
 
-	code_temp = strtoll(num_str, NULL, 16);
-
+	code_temp = strtoull(num_str, NULL, 16);
+#ifdef STRICT
 	if ( ! ((code_temp & CODE_FAMILY_MASK) == CODE_FAMILY) )	// TODO CHECK THIS BUGce
 		return NULL;
+#endif
 #ifdef TEST_MODE
 	ESP_LOGD(__func__,"num_val:[%lld]",code_temp);
 #endif

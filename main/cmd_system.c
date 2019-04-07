@@ -22,6 +22,7 @@
 #include "cmd_system.h"
 #include "sdkconfig.h"
 #include "cmd_tests.h"
+#include "ib_http_client.h"
 
 #include "codeflash.h"
 
@@ -47,6 +48,7 @@ void register_system()
     register_heap();
     register_version();
     register_restart();
+    register_setserver();
 #ifdef TEST_COMMANDS
 	register_tests();
 #endif

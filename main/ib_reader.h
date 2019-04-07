@@ -26,6 +26,6 @@
 void start_ib_reader();
 void set_esp_time(struct tm *new_time);
 struct tm get_esp_time();
-int key_code_lookup(unsigned long code);
+int key_code_lookup(uint64_t code);
 
 #endif /* MAIN_IB_READER_H_ */
