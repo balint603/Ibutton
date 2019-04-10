@@ -12,10 +12,12 @@
 #include <stdarg.h>
 #include <dirent.h>
 #include <errno.h>
-
+#include "esp_log.h"
 #include "cron.h"
 
 #define CRON_TEST
+
+#define TAG "CRON"
 
 typedef void (*ef)(Evmask*,int);
 
@@ -208,7 +210,7 @@ tmtoEvmask(struct tm *tm, Evmask *time)
 }
 
 char *
-split_crons(char *crons_s, int *length){
+split_crons(char *crons_s, size_t *length){
 	if(crons_s == NULL)
 		return NULL;
 
@@ -216,10 +218,12 @@ split_crons(char *crons_s, int *length){
 	while((*length)--){
 		switch(*cron_next){
 			case '\0':
+				ESP_LOGD(TAG,"EOF");
 				return NULL; 	// It was the last cron string, (EOF) there are no next.
 				break;
 			case SEPARATOR:
 				*cron_next = '\0';	// Change it to NULL terminator
+				ESP_LOGD(TAG,"SEPARATOR");
 				return ++cron_next;	// Must point to the next cron str
 				break;
 			default:
@@ -227,6 +231,7 @@ split_crons(char *crons_s, int *length){
 		}
 		cron_next++;
 	}
+	ESP_LOGD(TAG,"SIZE OUT");
 	return NULL;	// No null terminator in size range.
 }
 
@@ -237,19 +242,20 @@ split_crons(char *crons_s, int *length){
  *  \ret 1 in a domain
  * */
 int
-checkcrons(char *crons_s, struct tm *time, int cron_length)
+checkcrons(char *crons_s, struct tm *time)
 {
 	char cron[256];
 	char *cron_next;
 	char *cron_cur = cron;
+	size_t cron_length = CRON_MAX_SIZE-1;
 	Evmask mask_time;
 	Evmask mask_cron;
 
-	if(crons_s == NULL || cron_length == 0)	// No crons.
+	if(crons_s == NULL)	// No crons.
 		return 1;
 #ifdef CRON_TEST
-	printf("Got crons:[%s]\n",crons_s);
-	printf("Got time: %i,%i,%i,%i,%i\n",time->tm_min, time->tm_hour,
+	ESP_LOGD(TAG,"Got crons:[%s]\n",crons_s);
+	ESP_LOGD(TAG,"Got time: %i,%i,%i,%i,%i\n",time->tm_min, time->tm_hour,
 			time->tm_mday, time->tm_mon, time->tm_wday);
 #endif
 	tmtoEvmask(time, &mask_time);	// Convert tm struct into mask
@@ -257,8 +263,8 @@ checkcrons(char *crons_s, struct tm *time, int cron_length)
 	while(cron_length > 0){
 		cron_next = split_crons(cron_cur, &cron_length);
 #ifdef CRON_TEST
-		printf("cron_next val=%s\n",cron_next == NULL ? "NULL" : cron_next);
-		printf("Check this cron:[%s]\n",cron_cur == NULL ? "NULL" : cron_cur);
+		ESP_LOGD(TAG,"cron_next=%s\n",cron_next == NULL ? "NULL" : cron_next);
+		ESP_LOGD(TAG,"Check this cron=[%s]\n",cron_cur == NULL ? "NULL" : cron_cur);
 #endif
 		getdatespec(cron_cur, &mask_cron);	// Convert string into mask
 		if(check_domain(&mask_time, &mask_cron))

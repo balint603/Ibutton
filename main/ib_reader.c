@@ -30,7 +30,8 @@
 
 #include "ibutton.h"
 #include "cron.h"
-#include "/home/major/Documents/ESP32/Workbench/Test_ib_database/main/ib_database.h"
+#include "ib_database.h"
+#include "ib_log.h"
 
 #define TAG "IB_READER"
 
@@ -54,10 +55,11 @@ typedef enum infos {
 
 /** Configuration settings */
 typedef struct ib_conf{
-	unsigned long su_key;
-	unsigned int opening_time;
+	uint64_t su_key;
+	unsigned int openingtime;
 	unsigned int mode;
-	unsigned int button_enable;
+	unsigned int buttonenable;
+	char devicename[128];
 } ib_conf_t;
 
 /** Operation mode types */
@@ -108,12 +110,17 @@ static void check_touch(inputs_t input);
 volatile uint32_t initialized;
 
 ib_conf_t g_data = {
-		.opening_time = STANDARD_OPENING_TIME
+		.openingtime = STANDARD_OPENING_TIME,
+		.devicename = STANDARD_DEVICE_NAME
 };
 ib_handlers g_handlers;
 
+
 volatile BaseType_t g_enable_reader = pdTRUE;
 
+char *ib_get_device_name() {
+	return g_data.devicename;
+}
 
 
 /**
@@ -145,6 +152,13 @@ int key_code_lookup(uint64_t code){
 	ib_data_t *data = NULL;
 	time_t time_raw;
 	struct tm time_info;
+	ib_log_t msg;
+
+	time(&time_raw);
+	localtime_r(&time_raw, &time_info);
+	msg.timestamp = time_info;
+
+	msg.code = code;
 
 	ret = ibd_get_by_code(code, &data);
 	if(ret == IBD_FOUND){
@@ -152,21 +166,26 @@ int key_code_lookup(uint64_t code){
 			ESP_LOGE(__func__, "Object ptr null");
 			return 0;
 		}
-		time(&time_raw);
-		localtime_r(&time_raw, &time_info);
-		ret = checkcrons(data->crons, &time_info, sizeof(data->crons));
+		ret = checkcrons(data->crons, &time_info);
 		if ( ret ) {
+			msg.log_type = IB_LOG_KEY_ACCESS_GAINED;
 			ESP_LOGI(TAG, "Key gained access");
 		} else {
+			msg.log_type = IB_LOG_KEY_OUT_OF_DOMAIN;
 			ESP_LOGW(TAG, "Key out of time-domain");
 		}
-		return ret;
 	}
-	else if(ret == IBD_ERR_NOT_FOUND)
-		{ESP_LOGW(__func__,"Key not found!");}
-	else
-		{ESP_LOGW(__func__,"ibd_get_by_code errcode:%x",ret);}
-	return 0;
+	else if(ret == IBD_ERR_NOT_FOUND) {
+		msg.log_type = IB_LOG_KEY_INVALID_KEY_TOUCH;
+		ESP_LOGW(__func__,"Key not found!");
+		ret = 0;
+	}
+	else {
+		ESP_LOGW(__func__,"ibd_get_by_code errcode:%x",ret);
+		return 0;
+	}
+	ib_send_json_logm(&msg);
+	return ret;
 }
 
 /**
@@ -176,11 +195,14 @@ int key_code_lookup(uint64_t code){
  * */
 static void key_touched_event(uint64_t code){
 	inputs_t input;
+
 // todo search from memory and make decision
-	if(key_code_lookup(code))
+	if(key_code_lookup(code)) {
 		input = input_touched;
-	else
+	}
+	else {
 		input = input_invalid_touched;
+	}
 	xQueueSend(g_handlers.input_q,&input,0);
 }
 
@@ -202,13 +224,13 @@ TaskFunction_t ib_reader_task(void *pvParam){
 	g_handlers.timeout_tim = xTimerCreate("timeout alarm",
 				30000, pdFALSE, 0, timeout_callback);
 
-
 	uint64_t ibutton_code;
 	inputs_t input_incoming;
 	int button_prev_state = 0;
 
-	LED_RED(OFF);
 
+	LED_RED(OFF);
+	vTaskDelay(100 / portTICK_PERIOD_MS); 		// Button capacitance!
 	while(1){
 		if( !gpio_get_level(PIN_BUTTON)){
 			if(!button_prev_state){
@@ -228,6 +250,7 @@ TaskFunction_t ib_reader_task(void *pvParam){
 						break;
 					case IB_FAM_ERR:
 						ESP_LOGD(TAG,"Family code");
+
 						break;
 					case IB_CRC_ERR:
 						ESP_LOGD(TAG,"Invalid crc");
@@ -430,16 +453,24 @@ static void check_touch(inputs_t input){
 					// todo
 					break;
 				default:
-					timeout_set(g_data.opening_time);
+					timeout_set(g_data.openingtime);
 					g_handlers.fsm_state = access_allow;
 					break;
 			}
-			ESP_LOGD(TAG,"Touched\n");
+			ESP_LOGD(TAG,"Touched");
+			break;
+		case input_invalid_touched:
+			LED_RED(ON);
+			LED_GREEN(OFF);
+			vTaskDelay(1000 / portTICK_PERIOD_MS);
+			LED_RED(OFF);
+			LED_GREEN(ON);
+			ESP_LOGD(TAG,"Invalid touched");
 			break;
 		case input_button:
 			LED_GREEN(OFF);
 			RELAY_OPEN;
-			timeout_set(g_data.opening_time);
+			timeout_set(g_data.openingtime);
 			g_handlers.fsm_state = access_allow;
 			break;
 		default:

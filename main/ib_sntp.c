@@ -57,8 +57,8 @@ esp_err_t ib_sntp_set_ntp_server(const char *name){
  * \ret 0 There are
  * */
 static int choose_another_server(){
-	if(g_current_server_index < SERVER_NAMES_N){
-		g_chosen_server_name = SERVER_NAMES[++g_current_server_index];
+	if(++g_current_server_index < SERVER_NAMES_N){
+		g_chosen_server_name = SERVER_NAMES[g_current_server_index];
 		return 0;
 	}
 	ESP_LOGW(__func__,"No more NTP server domains to try.\n");
