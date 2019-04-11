@@ -28,16 +28,25 @@
 #include "ib_database.h"
 #include "cJSON.h"
 
+#define TAG 			"iB_logger"
+
 #define TESTMODE
+#define QUEUE_DEPTH		10
+volatile uint8_t initialized;
 
+#ifdef OFF
 
-int ib_send_json_logm(ib_log_t *logmsg) {
+int ib_log_post(ib_log_t msg) {
+	// TODO add to Queue
+}
+
+static cJSON *create_json_msg(ib_log_t *logmsg) {
 	cJSON *time_j = NULL;
 	char code_buf[17];
-
+	uint32_t failed;
 	cJSON *logm = cJSON_CreateObject();
 	if ( !logm ) {
-		goto end;
+		return NULL;
 	}
 
 	if ( !cJSON_AddStringToObject(logm, "device", ib_get_device_name()) ) {
@@ -87,7 +96,6 @@ int ib_send_json_logm(ib_log_t *logmsg) {
 	}
 	cJSON_AddItemToObject(logm, "time stamp", time_j );
 
-
 #ifdef TESTMODE
 	char *string = cJSON_Print(logm);
 	if ( string )
@@ -95,12 +103,33 @@ int ib_send_json_logm(ib_log_t *logmsg) {
 	else
 		ESP_LOGD(__func__,"Failed to print log message");
 #endif
+	if (logm)
+		return logm;
 end:
 	cJSON_Delete(logm);
+	return NULL;
+}
+
+int ib_send_json_logmsg(ib_log_t *logmsg) {
+	cJSON logm = create_json_msg(logmsg);
+
+	// todo delete json object
 	return 0;
 }
 
+static void logsender_task() {
 
+}
+
+void ib_log_init(){
+	if ( initialized ) {
+		ESP_LOGW(TAG,"Already initialized");
+		return;
+	}
+
+	initialized = 1;
+}
+#endif
 
 
 

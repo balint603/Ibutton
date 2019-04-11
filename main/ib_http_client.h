@@ -24,7 +24,7 @@
 
 
 esp_err_t ib_client_init();
-
+char *ib_client_get_log_url();
 
 
 

@@ -184,7 +184,7 @@ int key_code_lookup(uint64_t code){
 		ESP_LOGW(__func__,"ibd_get_by_code errcode:%x",ret);
 		return 0;
 	}
-	ib_send_json_logm(&msg);
+	//ib_send_json_logm(&msg); TODO OFF THIS
 	return ret;
 }
 

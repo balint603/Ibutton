@@ -20,6 +20,7 @@
 #include "esp_http_client.h"
 #include "cmd_wifi.h"
 #include "ib_database.h"
+#include "ib_reader.h"
 
 #define TESTMODE
 
@@ -35,6 +36,7 @@ extern EventGroupHandle_t wifi_event_group;
 extern const int CONNECTED_BIT;
 
 static struct {
+	struct arg_str *server_URL;
     struct arg_str *checksum_file_path;
     struct arg_str *database_file_path;
     struct arg_end *end;
@@ -42,8 +44,10 @@ static struct {
 
 #define URL_MAXLEN 63
 typedef struct ib_server_conf {
+	char server_url[32];
 	char ch_url[URL_MAXLEN + 1];	// Checksum
 	char db_url[URL_MAXLEN + 1];	// Database
+	char log_url[URL_MAXLEN + 2];	// Log
 } ib_server_conf_t;
 
 
@@ -115,6 +119,10 @@ static esp_err_t refresh_server_conf() {
 	return ESP_OK;
 }
 
+char *ib_client_get_log_url() {
+	return g_server_conf.server_url;
+}
+
 /** \brief Download from server and write via spiffs.
  *  BUFFERSIZE < CSV?
  *  PROTOTYPE!!!
@@ -135,7 +143,11 @@ esp_err_t save_csv_from_server(uint64_t checksum) {
 		.event_handler = _http_event_handler
     };
     esp_http_client_handle_t client = esp_http_client_init(&config);
-
+    if ( !client ) {
+    	ESP_LOGE(TAG, "Invalid URL");
+    	free(buffer);
+    	return 1;
+    }
     ret = esp_http_client_open(client, 0);
     if ( ESP_OK != ret ) {
     	ESP_LOGE(TAG,"Failed to open HTTP connection: %s", esp_err_to_name(ret));
@@ -172,7 +184,9 @@ esp_err_t save_csv_from_server(uint64_t checksum) {
 }
 
 /** \brief Get checksum value from server.
- *
+ *  \ret 0 Successfully downloaded.
+ *  \ret -1 Malloc failed
+ *  \ret 1 HTTP failure
  * */
 int get_checksum_from_server(uint64_t *checksum) {
 	char *buffer = malloc(HTTP_CHECKSUM_BUFFER+1);
@@ -191,7 +205,11 @@ int get_checksum_from_server(uint64_t *checksum) {
 		.event_handler = _http_event_handler
     };
     esp_http_client_handle_t client = esp_http_client_init(&config);
-
+    if ( !client ) {
+    	free(buffer);
+    	ESP_LOGE(TAG, "Invalid URL");
+    	return 1;
+    }
     ret = esp_http_client_open(client, 0);
     if ( ESP_OK != ret ) {
     	ESP_LOGE(TAG,"Failed to open HTTP connection: %s", esp_err_to_name(ret));
@@ -233,15 +251,16 @@ void update_from_server_task() {
     	xEventGroupWaitBits(g_event_group, BIT_START_UPDATING,
     			pdFALSE, pdTRUE, portMAX_DELAY);
 
-    	get_checksum_from_server(&checksum_got);
-    	ibd_get_checksum(&checksums);
-    	if ( checksum_got != checksums.checksum_cur ) {
-    		ESP_LOGI(TAG, "Start downloading csv file");
-    		if ( ESP_OK != save_csv_from_server(checksum_got) ) {
+    	if ( !get_checksum_from_server(&checksum_got) ) {		// Successfully connected and downloaded
+			ibd_get_checksum(&checksums);
+			if ( checksum_got != checksums.checksum_cur ) {
+				ESP_LOGI(TAG, "Start downloading csv file");
+				if ( ESP_OK != save_csv_from_server(checksum_got) ) {
 
-    		} else {
-    			ESP_LOGI(TAG, "Succesfully downloaded");
-    		}
+				} else {
+					ESP_LOGI(TAG, "Succesfully downloaded");
+				}
+			}
     	}
     	xEventGroupWaitBits(g_event_group, BIT_START_UPDATE_NOW,
     			pdTRUE, pdTRUE, UPDATES_PERIOD_MS / portTICK_PERIOD_MS);
@@ -285,22 +304,39 @@ esp_err_t ib_client_init() {
 	return ESP_OK;
 }
 
-static int save_servers_conf(char *ch_url, char *db_url) {
-	if ( !ch_url || !db_url )
+static int save_servers_conf(char *URL, char *ch_file, char *db_file) {
+	if ( !ch_file || !db_file || !URL)
 		return 1;
 
 	nvs_handle nvs;
 	esp_err_t ret;
-	if ( strlen(ch_url) <= URL_MAXLEN) {
-		strcpy(g_server_conf.ch_url,ch_url);
-	} else {
-		ESP_LOGE(__func__,"Checksum URL too long");
+	const size_t url_len = strlen(URL);
+	if ( url_len > URL_MAXLEN/2 ) {
+		ESP_LOGE(TAG, "Too long URL");
+		return 1;
 	}
-	if ( strlen(db_url) <= URL_MAXLEN) {
-			strcpy(g_server_conf.db_url,db_url);
+	strcpy(g_server_conf.server_url, URL);
+	if ( strlen(ch_file) <= URL_MAXLEN/2 ) {
+		strcpy(g_server_conf.ch_url, URL);
+		strcat(g_server_conf.ch_url, ch_file);
 	} else {
-		ESP_LOGE(__func__,"Database URL too long");
+		ESP_LOGW(TAG, "Too long checksum file path");
 	}
+
+	if ( strlen(db_file) <= URL_MAXLEN/2 ) {
+			strcpy(g_server_conf.db_url, URL);
+			strcat(g_server_conf.db_url, db_file);
+	} else {
+		ESP_LOGW(TAG, "Too long data file path");
+	}
+
+	strcpy(g_server_conf.log_url, URL);
+	if ( URL[url_len-1] != '/' ) {
+		g_server_conf.log_url[url_len] = '/';
+		g_server_conf.log_url[url_len+1] ='\0';
+	}
+	strcat(g_server_conf.log_url,ib_get_device_name());
+	ESP_LOGI(TAG, "Logfile path:%s", g_server_conf.log_url);
 
 	ret = nvs_open(namespace, NVS_READWRITE, &nvs);
 	if ( ESP_OK != ret ) {
@@ -318,14 +354,16 @@ static int save_servers_conf(char *ch_url, char *db_url) {
 }
 
 static int setserver_url(int argc, char** argv) {
-	if ( argc < 3 ) {
+	if ( argc < 4 ) {
 		if ( argc <= 1)
-			printf("Missing checksum URL\n ");
-		if ( argc <= 2 )
-			printf("Missing database URL\n");
+			printf("Missing server URL\n ");
+		if ( argc <= 2)
+			printf("Missing checksum file path\n ");
+		if ( argc <= 3 )
+			printf("Missing database file path\n");
 		return 1;
 	}
-	if ( !(argv[1] && argv[2])  )
+	if ( !(argv[1] && argv[2] && argv[3])  )
 		return 1;
 	int nerrors = arg_parse(argc, argv, (void**) &setserver_args);
 	if ( nerrors ) {
@@ -333,12 +371,13 @@ static int setserver_url(int argc, char** argv) {
 		return 1;
 	}
 
-	return save_servers_conf(argv[1], argv[2]);
+	return save_servers_conf(argv[1], argv[2], argv[3]);
 }
 
 void register_setserver() {
-	setserver_args.checksum_file_path = arg_str1(NULL, NULL, "<URL checksum>", "URL of checksum file");
-	setserver_args.database_file_path = arg_str1(NULL, NULL, "<URL database>", "URL of database file");
+	setserver_args.server_URL 		  = arg_str1(NULL, NULL, "<URL>", "URL of server");
+	setserver_args.checksum_file_path = arg_str1(NULL, NULL, "<File path>", "File path of checksum file");
+	setserver_args.database_file_path = arg_str1(NULL, NULL, "<File path>", "File path of csv file");
 	setserver_args.end = arg_end(0);
 	const esp_console_cmd_t setserver_cmd = {
 			.command = "setserver",
