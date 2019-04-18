@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/timers.h"
+#include "freertos/event_groups.h"
 #include "esp_system.h"
 #include "esp_log.h"
 #include "esp_err.h"
@@ -31,6 +32,9 @@
 
 #define SERVER_NAME_MAX_SIZE 64
 #define SERVER_NAMES_N 4
+
+EventGroupHandle_t ib_sntp_event_group;
+
 
 /** NTP Server names */
 const char *SERVER_NAMES[SERVER_NAMES_N]
@@ -95,6 +99,7 @@ static void obtain_time_task(){
 	localtime_r(&now, &time_info);
 	ESP_LOGI(__func__,"Got time from SNTP server. Domain:%s",g_chosen_server_name);
 	ESP_LOGI(__func__,"Current local time: %s", asctime(&time_info));
+	xEventGroupSetBits(ib_sntp_event_group, IB_TIME_SET_BIT);
 	vTaskDelete(xTaskGetCurrentTaskHandle());
 }
 
@@ -110,7 +115,7 @@ void ib_sntp_obtain_time(){
 	//sntp_setserver(idx, addr)
 	sntp_setservername(0, g_chosen_server_name);
 	sntp_init();
-	// todo is WiFi connected? check here
+	ib_sntp_event_group = xEventGroupCreate();
 	TaskHandle_t obtain_time_task_h;	// Listener task, decide the time is successfully set or not
 	xTaskCreate(obtain_time_task, "sntp_obtain", 4096, NULL, 5, &obtain_time_task_h);
 }

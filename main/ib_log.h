@@ -29,7 +29,6 @@ typedef struct ib_log {
 
 #endif /* MAIN_IB_LOG_H_ */
 
-
 void ib_log_init();
 void ib_log_post(ib_log_t *msg);
 cJSON *create_json_msg(ib_log_t *logmsg);

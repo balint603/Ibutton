@@ -70,6 +70,7 @@
 #define IBD_PARTITION_LABEL 	NULL 			// NULL: basic spiffs name will be searched.
 #define IBD_FILE_SIZE 			(256 * 1024)	// temporary and active files size
 #define IBD_CSV_FILE_SIZE		(512 * 1024)	// csv file size
+#define IBD_LOG_FILE_SIZE		(512 * 1024)	// Log file size
 
 /** CSV file informations */
 #define IBD_CRON_MAX_SIZE 		256				// Max cron size

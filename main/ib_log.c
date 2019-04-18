@@ -31,6 +31,7 @@
 #include "ib_http_client.h"
 #include "ib_database.h"
 #include "cmd_wifi.h"
+#include  "ib_sntp.h"
 
 #define TAG 			"iB_logger"
 
@@ -39,6 +40,7 @@
 
 extern EventGroupHandle_t wifi_event_group;
 extern const int CONNECTED_BIT;
+extern EventGroupHandle_t ib_sntp_event_group;
 
 volatile uint8_t ib_log_initialized = 0;
 
@@ -123,7 +125,7 @@ end:
 /** \brief JSON log info sender.
  * 	Send the JSON object waiting in queue or flash.
  * */
-static void logsender_task() {
+static void logsender_task() {			// TODO:LOGGER Change this task to implement logging to flash when HTTP err.
 	ib_log_t msg;
 	cJSON *msg_json = NULL;
 	char *data_str;
@@ -134,8 +136,9 @@ static void logsender_task() {
 		if ( msg_json ) {
 			data_str = cJSON_Print(msg_json);
 			cJSON_Delete(msg_json);
+			// Send previous data from flash
 			if ( data_str ) {
-				if ( ib_client_send_logmsg(data_str, strlen(data_str) + 1) ) {
+				if ( ib_client_send_logmsg(data_str, strlen(data_str) + 1) ) {	// Try to send current msg
 					ESP_LOGE(__func__,"Cannot send");
 				} else {
 					ESP_LOGD(__func__,"Send JSON log msg");
@@ -155,6 +158,7 @@ void ib_log_init() {
 		return;
 	}
 	xEventGroupWaitBits(wifi_event_group, CONNECTED_BIT, pdFALSE, pdTRUE, portMAX_DELAY);
+	xEventGroupWaitBits(ib_sntp_event_group, IB_TIME_SET_BIT, pdFALSE, pdTRUE, portMAX_DELAY);
 	time_t rawtime;
 	ib_log_t msg;
 	time(&rawtime);
@@ -173,6 +177,8 @@ void ib_log_init() {
 		ESP_LOGE(TAG, "Cannot create task");
 		return;
 	}
+
+	// todo LOGGER: Check flash free size
 
 	xQueueSend(g_queue, &msg, 0);
 	ESP_LOGI(TAG, "Initialized");
