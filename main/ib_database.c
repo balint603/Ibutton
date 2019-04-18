@@ -22,6 +22,13 @@
 
 #define TEST_MODE
 
+#ifdef TEST_MODE
+
+#define RELAY_OPEN gpio_set_level(GPIO_NUM_19,1);
+#define RELAY_CLOSE gpio_set_level(GPIO_NUM_19,0);
+
+#endif
+
 const char *FILE_DB_BIN = 		  	"/spiffs/ib_database/ibd.bin";
 const char *FILE_DB_TEMP = 	  		"/spiffs/ib_database/ibd_temp.bin";
 const char *FILE_INFO = 		  	"/spiffs/ib_database/info_object.bin";
@@ -244,6 +251,7 @@ esp_err_t ibd_get_by_code(uint64_t code_val, ib_data_t **d_ptr) {
 	uint32_t crons_size;
 
 	while ( offset < end_offset ) {
+
 		fseek(fptr, offset, SEEK_SET);
 
 		if ( 1 == fread(&code_s, sizeof(ib_code_t), 1, fptr) ) {	// Read data ok
@@ -272,8 +280,8 @@ esp_err_t ibd_get_by_code(uint64_t code_val, ib_data_t **d_ptr) {
 			} else if ( ferror(fptr) ) {
 				ESP_LOGW(__func__,"File read error");
 			}
-			return IBD_ERR_FILE_OPEN;
 			fclose(fptr);
+			return IBD_ERR_FILE_OPEN;
 		}
 
 	}

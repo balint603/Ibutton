@@ -15,6 +15,7 @@
 #include <time.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/event_groups.h"
 #include "esp_wifi.h"
 #include "esp_system.h"
 #include "esp_log.h"
@@ -23,29 +24,38 @@
 #include "esp_spiffs.h"
 #include "nvs_flash.h"
 #include "driver/gpio.h"
+#include "esp_http_client.h"
+#include "cJSON.h"
 
 #include "ib_reader.h"
+#include "ib_http_client.h"
 #include "ib_database.h"
-#include "cJSON.h"
+#include "cmd_wifi.h"
 
 #define TAG 			"iB_logger"
 
 #define TESTMODE
 #define QUEUE_DEPTH		10
-volatile uint8_t initialized;
 
-#ifdef OFF
+extern EventGroupHandle_t wifi_event_group;
+extern const int CONNECTED_BIT;
 
-int ib_log_post(ib_log_t msg) {
-	// TODO add to Queue
+volatile uint8_t ib_log_initialized = 0;
+
+QueueHandle_t g_queue;
+
+/** \brief Post a log message.
+ * 	\param msg Message to be sent
+ * */
+void ib_log_post(ib_log_t *msg) {
+	xQueueSend(g_queue, msg, 0);
 }
 
-static cJSON *create_json_msg(ib_log_t *logmsg) {
+cJSON *create_json_msg(ib_log_t *logmsg) {
 	cJSON *time_j = NULL;
 	char code_buf[17];
-	uint32_t failed;
 	cJSON *logm = cJSON_CreateObject();
-	if ( !logm ) {
+	if ( !logm || !logmsg) {
 		return NULL;
 	}
 
@@ -110,26 +120,65 @@ end:
 	return NULL;
 }
 
-int ib_send_json_logmsg(ib_log_t *logmsg) {
-	cJSON logm = create_json_msg(logmsg);
-
-	// todo delete json object
-	return 0;
-}
-
+/** \brief JSON log info sender.
+ * 	Send the JSON object waiting in queue or flash.
+ * */
 static void logsender_task() {
+	ib_log_t msg;
+	cJSON *msg_json = NULL;
+	char *data_str;
+	while ( 1 ) {
+		xQueueReceive(g_queue, &msg, portMAX_DELAY);
 
+		msg_json = create_json_msg(&msg);
+		if ( msg_json ) {
+			data_str = cJSON_Print(msg_json);
+			cJSON_Delete(msg_json);
+			if ( data_str ) {
+				if ( ib_client_send_logmsg(data_str, strlen(data_str) + 1) ) {
+					ESP_LOGE(__func__,"Cannot send");
+				} else {
+					ESP_LOGD(__func__,"Send JSON log msg");
+				}
+			} else {
+				ESP_LOGE(TAG, "JSON print error");
+			}
+		} else {
+			ESP_LOGE(TAG, "JSON cannot be created");
+		}
+	}
 }
 
-void ib_log_init(){
-	if ( initialized ) {
+void ib_log_init() {
+	if ( ib_log_initialized ) {
 		ESP_LOGW(TAG,"Already initialized");
 		return;
 	}
+	xEventGroupWaitBits(wifi_event_group, CONNECTED_BIT, pdFALSE, pdTRUE, portMAX_DELAY);
+	time_t rawtime;
+	ib_log_t msg;
+	time(&rawtime);
+	localtime_r(&rawtime, &msg.timestamp);
+	msg.code = 0;
+	msg.log_type = IB_SYSTEM_UP;
 
-	initialized = 1;
+	g_queue = xQueueCreate(QUEUE_DEPTH, sizeof(ib_log_t));
+	if ( !g_queue ) {
+		ESP_LOGE(TAG, "No heap memory for queue");
+		return;
+	}
+
+	if ( xTaskCreate(&logsender_task, "Logsender", 4096, NULL, 4, NULL)
+			!= pdPASS) {
+		ESP_LOGE(TAG, "Cannot create task");
+		return;
+	}
+
+	xQueueSend(g_queue, &msg, 0);
+	ESP_LOGI(TAG, "Initialized");
+	ib_log_initialized = 1;
 }
-#endif
+
 
 
 

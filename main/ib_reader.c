@@ -73,6 +73,7 @@ typedef void ( *p_state_handler )(inputs_t input);
 /** FreeRTOS handlers */
 typedef struct ib_handles{
 	p_state_handler fsm_state;
+	SemaphoreHandle_t st_semaphor;
 	QueueHandle_t input_q;
 	TaskHandle_t reader_t;
 	TaskHandle_t info_t;
@@ -96,16 +97,11 @@ typedef struct ib_handles{
 #define INPUT_QUEUE_LENGTH 1
 #define INPUT_QUEUE_ITEM_SIZE sizeof(inputs_t)
 
+/** MUTEX wait */
+#define MUT_WAIT (100 / portTICK_PERIOD_MS)
+
 /** Basic time in ms */
 #define TIMEOUT_BASIC_MS 30000
-
-/** called: state functions.
- *  This functions performs several operations,
- *  they are the states of the machine.
- *  */
-static void check_touch(inputs_t input);
-
-
 
 volatile uint32_t initialized;
 
@@ -115,12 +111,18 @@ ib_conf_t g_data = {
 };
 ib_handlers g_handlers;
 
-
 volatile BaseType_t g_enable_reader = pdTRUE;
 
-char *ib_get_device_name() {
-	return g_data.devicename;
-}
+
+/** called: state functions.
+ *  This functions performs several operations,
+ *  they are the states of the machine.
+ *  */
+static void st_check_touch();
+static void st_wait_for_clear_log();
+static void st_access_allow();
+static void st_su_mode();
+static void st_check_touch();
 
 
 /**
@@ -142,12 +144,39 @@ static int is_su_mode_enable(){
 	return gpio_get_level(PIN_SU_ENABLE);
 }
 
+/** Helper functions of State functions */
+
+static void timeout_set(int ms){
+	xTimerStop(g_handlers.timeout_tim, 0);
+	xTimerChangePeriod(g_handlers.timeout_tim,
+						ms / portTICK_RATE_MS,
+						0);
+	xTimerStart(g_handlers.timeout_tim, 0);
+}
+
+static void send_info(infos_t info){
+	xQueueSend(g_handlers.info_q,&info,0);
+	timeout_set(TIMEOUT_BASIC_MS);
+}
+
+/** \brief Change the FSM state.
+ * 	Using MUTEX
+ *  */
+static void switch_state_to( p_state_handler new_state, TickType_t wait){
+	if ( xSemaphoreTake(g_handlers.st_semaphor, wait) == pdTRUE ) {
+		g_handlers.fsm_state = new_state;
+		xSemaphoreGive(g_handlers.st_semaphor);
+	} else {
+		ESP_LOGW(TAG, "Could not change state");
+	}
+}
+
 /** \brief Search key and check cron.
  *  \ret 0 key is not in the database or out of the time domains
  *  \ret 1 access allow
  *
  * */
-int key_code_lookup(uint64_t code){
+static int key_code_lookup(uint64_t code){
 	esp_err_t ret;
 	ib_data_t *data = NULL;
 	time_t time_raw;
@@ -184,7 +213,7 @@ int key_code_lookup(uint64_t code){
 		ESP_LOGW(__func__,"ibd_get_by_code errcode:%x",ret);
 		return 0;
 	}
-	//ib_send_json_logm(&msg); TODO OFF THIS
+	ib_log_post(&msg);
 	return ret;
 }
 
@@ -215,9 +244,9 @@ static void key_touched_event(uint64_t code){
  * and that time will be recalculated while the key is still connected.
  * To enable the reader again, the key has to disconnect for the defined time.
  * */
-TaskFunction_t ib_reader_task(void *pvParam){
+static void ib_reader_task(void *pvParam){
 
-	g_handlers.fsm_state = check_touch;
+	g_handlers.fsm_state = st_check_touch;
 
 	TimerHandle_t reader_tim = xTimerCreate("reader timer",
 			READER_DISABLE_TICKS, pdFALSE, 0, reader_enable_callback);
@@ -272,7 +301,7 @@ TaskFunction_t ib_reader_task(void *pvParam){
 /** \brief Outputs information for users.
  * The task waits in the blocked state until incomes a need to change information output.
  *  */
-TaskFunction_t ib_info_task(void *pvParam){
+static void ib_info_task(void *pvParam){
 	infos_t info_state = blink_none;
 	int delay_ms = 500;
 	gpio_mode_t led_out_state = GPIO_MODE_OUTPUT;
@@ -333,12 +362,12 @@ static void create_tasks(){
 
 	const char task_name[] = "ibutton reader task";
 	if(xTaskCreate(ib_reader_task, task_name, 4096,
-			0, 5, &g_handlers.reader_t) != pdPASS){
+			0, 7, &g_handlers.reader_t) != pdPASS){
 		ESP_LOGE(__func__,"'%s' cannot be created",task_name);
 	}
 	const char task2_name[] = "ibutton info task";
 	if(xTaskCreate(ib_info_task, task2_name, 4096,
-			0, 5, &g_handlers.info_t) != pdPASS){
+			0, 7, &g_handlers.info_t) != pdPASS){
 		ESP_LOGE(__func__,"'%s' cannot be created",task2_name);
 	}
 }
@@ -367,6 +396,12 @@ static void gpio_set(){
 	gpio_set_pull_mode(PIN_SU_ENABLE, GPIO_PULLUP_ONLY);
 }
 
+/** \brief Get the current device name. */
+char *ib_get_device_name() {
+	return g_data.devicename;
+}
+
+
 /** \brief Starts an iButton reader module.
  *
  * */
@@ -379,61 +414,67 @@ void start_ib_reader(){
 	gpio_set();
 	onewire_init(PIN_DATA);
 	create_tasks();
+	g_handlers.st_semaphor = xSemaphoreCreateMutex();
 	initialized = 1;
 }
 
-/** Helper functions of State functions */
+/** \brief Wait for superuser touch intervention.
+ *	Bring the device into a waiting state.
+ * */
+void ib_need_su_touch() {
+	switch_state_to(st_wait_for_clear_log, portMAX_DELAY);
+}
 
-static void timeout_set(int ms){
-	xTimerStop(g_handlers.timeout_tim, 0);
-	xTimerChangePeriod(g_handlers.timeout_tim,
-						ms / portTICK_RATE_MS,
-						0);
-	xTimerStart(g_handlers.timeout_tim, 0);
+void ib_not_need_su_touch() {
+	switch_state_to(st_check_touch, portMAX_DELAY);
 }
 
 /** STATE FUNCTIONS _________________________________________________________________________*/
 
-static void switch_state_to( p_state_handler new_state ){
-	g_handlers.fsm_state = new_state;
+static void st_wait_for_clear_log(inputs_t input) {
+	switch (input) {
+		case input_su_touched:
+			LED_GREEN(ON);
+			LED_RED(OFF);
+			switch_state_to(st_check_touch, MUT_WAIT);
+			// TODO LOG: delete log file.
+			break;
+		default:
+			break;
+	}
 }
 
-static void send_info(infos_t info){
-	xQueueSend(g_handlers.info_q,&info,0);
-	timeout_set(TIMEOUT_BASIC_MS);
-}
-
-static void access_allow(inputs_t input){
+static void st_access_allow(inputs_t input) {
 	switch (input) {
 		case input_tout:
 			LED_GREEN(ON);
 			RELAY_CLOSE;
 			infos_t info = blink_none;
 			send_info(info);
-			g_handlers.fsm_state = check_touch;
+			switch_state_to(st_check_touch, MUT_WAIT);
 			break;
 		default:
 			break;
 	}
 }
 
-static void su_mode(inputs_t input){
-	switch(input){
+static void st_su_mode(inputs_t input) {
+	switch(input) {
 		case input_tout:
 			send_info(blink_none);
-			switch_state_to(check_touch);
+			switch_state_to(st_check_touch, MUT_WAIT);
 			break;
 		default:
 			break;
 	}
 }
 
-static void check_touch(inputs_t input){
-	switch(input){
+static void st_check_touch(inputs_t input) {
+	switch(input) {
 		case input_su_touched:
 			if(is_su_mode_enable()){
 				send_info(blink_green);
-				switch_state_to(su_mode);
+				switch_state_to(st_su_mode, MUT_WAIT);
 				ESP_LOGD(TAG,"Touched su");
 				break;
 			}
@@ -454,7 +495,7 @@ static void check_touch(inputs_t input){
 					break;
 				default:
 					timeout_set(g_data.openingtime);
-					g_handlers.fsm_state = access_allow;
+					switch_state_to(st_access_allow, MUT_WAIT);
 					break;
 			}
 			ESP_LOGD(TAG,"Touched");
@@ -471,7 +512,7 @@ static void check_touch(inputs_t input){
 			LED_GREEN(OFF);
 			RELAY_OPEN;
 			timeout_set(g_data.openingtime);
-			g_handlers.fsm_state = access_allow;
+			switch_state_to(st_access_allow, MUT_WAIT);
 			break;
 		default:
 			break;

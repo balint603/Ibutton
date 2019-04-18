@@ -19,6 +19,7 @@
 #include "nvs_flash.h"
 #include "esp_http_client.h"
 #include "cmd_wifi.h"
+
 #include "ib_database.h"
 #include "ib_reader.h"
 
@@ -39,6 +40,7 @@ static struct {
 	struct arg_str *server_URL;
     struct arg_str *checksum_file_path;
     struct arg_str *database_file_path;
+    struct arg_str *logfile_dir_path;
     struct arg_end *end;
 } setserver_args;
 
@@ -114,13 +116,14 @@ static esp_err_t refresh_server_conf() {
 		nvs_close(nvs);
 		return ret;
 	}
-	ESP_LOGI(TAG,"data from nvs:\nChecksum path:%s\nDatabase path:%s",g_server_conf.ch_url, g_server_conf.db_url);
+	ESP_LOGI(TAG,"data from nvs:\nChecksum path:%s\nDatabase path:%s\nLogfile path:%s",
+			g_server_conf.ch_url, g_server_conf.db_url, g_server_conf.log_url);
 	nvs_close(nvs);
 	return ESP_OK;
 }
 
 char *ib_client_get_log_url() {
-	return g_server_conf.server_url;
+	return g_server_conf.log_url;
 }
 
 /** \brief Download from server and write via spiffs.
@@ -267,6 +270,47 @@ void update_from_server_task() {
     }
 }
 
+/** \brief Send a specific cJSON message.
+ * 	\ret 0 Successfully sent.
+ * 		 1 HTTP error.
+ * 		 2 JSON error.
+ * 		-1 Param error.
+ * */
+int ib_client_send_logmsg(char *data, size_t length) {
+	if ( !data )
+		return -1;
+	//char length_str[64];
+	esp_err_t ret;
+	esp_http_client_config_t config = {
+			.url = g_server_conf.log_url,
+			.event_handler = _http_event_handler
+	};
+
+	esp_http_client_handle_t client = esp_http_client_init(&config);
+	if ( !client ) {
+		ESP_LOGE(TAG, "Invalid URL");
+		return 1;
+	}
+	esp_http_client_set_method(client, HTTP_METHOD_POST);
+	ret = esp_http_client_open(client, length);
+	if ( ret != ESP_OK ) {
+		ESP_LOGE(__func__, "HTTP open failed: %s", esp_err_to_name(ret));
+		esp_http_client_cleanup(client);
+		return 1;
+	}
+	//itoa(length,length_str, 10);
+	//esp_http_client_set_header(client, "Content-Length", length_str);
+	ret = esp_http_client_write(client, data, length);
+	if ( ret != length ) {
+		ESP_LOGE(__func__, "HTTP write failed: %i bytes remaining", length - ret);
+	}
+	ret = esp_http_client_get_status_code(client);
+	ESP_LOGD(__func__,"Response status code: %i", ret);
+	esp_http_client_close(client);
+	esp_http_client_cleanup(client);
+	return 0;
+}
+
 /** Stop updating periodically */
 void ib_client_stop_updating() {
 	xEventGroupClearBits(g_event_group, BIT_START_UPDATING);
@@ -304,10 +348,9 @@ esp_err_t ib_client_init() {
 	return ESP_OK;
 }
 
-static int save_servers_conf(char *URL, char *ch_file, char *db_file) {
+static int save_servers_conf(int argc, char *URL, char *ch_file, char *db_file, char *log_dir) {
 	if ( !ch_file || !db_file || !URL)
 		return 1;
-
 	nvs_handle nvs;
 	esp_err_t ret;
 	const size_t url_len = strlen(URL);
@@ -330,12 +373,19 @@ static int save_servers_conf(char *URL, char *ch_file, char *db_file) {
 		ESP_LOGW(TAG, "Too long data file path");
 	}
 
-	strcpy(g_server_conf.log_url, URL);
-	if ( URL[url_len-1] != '/' ) {
-		g_server_conf.log_url[url_len] = '/';
-		g_server_conf.log_url[url_len+1] ='\0';
+	if ( argc >= 5 || log_dir) {	// LOGFILE URL
+		strcpy(g_server_conf.log_url, URL);
+		if ( URL[url_len-1] != '/' ) {
+			g_server_conf.log_url[url_len] = '/';
+			g_server_conf.log_url[url_len+1] ='\0';
+		}
+		strcat(g_server_conf.log_url, log_dir);
+		strcat(g_server_conf.log_url, ib_get_device_name());
+		strcat(g_server_conf.log_url, ".log");
+	} else {
+		g_server_conf.log_url[0] = '\0';
+		// TODO TURN OFF LOGGING
 	}
-	strcat(g_server_conf.log_url,ib_get_device_name());
 	ESP_LOGI(TAG, "Logfile path:%s", g_server_conf.log_url);
 
 	ret = nvs_open(namespace, NVS_READWRITE, &nvs);
@@ -371,13 +421,14 @@ static int setserver_url(int argc, char** argv) {
 		return 1;
 	}
 
-	return save_servers_conf(argv[1], argv[2], argv[3]);
+	return save_servers_conf(argc, argv[1], argv[2], argv[3], argv[4]);
 }
 
 void register_setserver() {
 	setserver_args.server_URL 		  = arg_str1(NULL, NULL, "<URL>", "URL of server");
 	setserver_args.checksum_file_path = arg_str1(NULL, NULL, "<File path>", "File path of checksum file");
 	setserver_args.database_file_path = arg_str1(NULL, NULL, "<File path>", "File path of csv file");
+	setserver_args.logfile_dir_path   = arg_str0(NULL, NULL, "<Dir path>", "Dir path of logging file");
 	setserver_args.end = arg_end(0);
 	const esp_console_cmd_t setserver_cmd = {
 			.command = "setserver",

@@ -15,6 +15,7 @@
 #include "ib_database.h"
 #include "esp_spiffs.h"
 #include "ib_http_client.h"
+#include "ib_log.h"
 
 void spiffs_init() {
 	ESP_LOGI("SPIFF","Initializing...");
@@ -66,6 +67,7 @@ void app_main(){
 	initials();
 	start_ib_reader();
 	ib_client_init();
+	ib_log_init();
 
 	while(1){
 		gpio_set_level(4, 1);

@@ -10,7 +10,7 @@
 
 #include <inttypes.h>
 #include <time.h>
-
+#include "cJSON.h"
 
 typedef struct ib_log {
 	uint64_t code;
@@ -22,6 +22,7 @@ typedef struct ib_log {
 #define IB_LOG_KEY_ACCESS_GAINED 		0
 #define IB_LOG_KEY_INVALID_KEY_TOUCH 	1
 #define IB_LOG_KEY_OUT_OF_DOMAIN 		2
+#define IB_SYSTEM_UP			 		3
 
 #define IB_LOG_ERR_CONNECTION_LOST 100
 #define IB_LOG_ERR_CONNECTION_OK   200
@@ -29,4 +30,6 @@ typedef struct ib_log {
 #endif /* MAIN_IB_LOG_H_ */
 
 
-int ib_send_json_logm(ib_log_t *logmsg);
+void ib_log_init();
+void ib_log_post(ib_log_t *msg);
+cJSON *create_json_msg(ib_log_t *logmsg);

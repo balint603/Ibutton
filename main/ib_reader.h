@@ -25,9 +25,7 @@
 #define PIN_SU_ENABLE	GPIO_NUM_15
 
 void start_ib_reader();
-void set_esp_time(struct tm *new_time);
-struct tm get_esp_time();
-int key_code_lookup(uint64_t code);
 char *ib_get_device_name();
-
+void ib_need_su_touch();
+void ib_not_need_su_touch();
 #endif /* MAIN_IB_READER_H_ */
