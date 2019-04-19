@@ -70,7 +70,7 @@ cJSON *create_json_msg(ib_log_t *logmsg) {
 		goto end;
 	}
 
-	if ( !cJSON_AddNumberToObject(logm, "type", logmsg->log_type) ) {
+	if ( !cJSON_AddStringToObject(logm, "type", logmsg->log_type) ) {
 		goto end;
 	}
 
@@ -122,13 +122,22 @@ end:
 	return NULL;
 }
 
+void save_to_flash(char *data, size_t len) {
+	esp_err_t ret;
+	ret = ibd_log_append_file(data, &len);
+	if ( ret == IBD_ERR_CRITICAL_SIZE ) {
+		ib_need_su_touch();
+	}
+}
+
 /** \brief JSON log info sender.
  * 	Send the JSON object waiting in queue or flash.
  * */
-static void logsender_task() {			// TODO:LOGGER Change this task to implement logging to flash when HTTP err.
+static void logsender_task() {
 	ib_log_t msg;
 	cJSON *msg_json = NULL;
 	char *data_str;
+	size_t data_len;
 	while ( 1 ) {
 		xQueueReceive(g_queue, &msg, portMAX_DELAY);
 
@@ -138,8 +147,10 @@ static void logsender_task() {			// TODO:LOGGER Change this task to implement lo
 			cJSON_Delete(msg_json);
 			// Send previous data from flash
 			if ( data_str ) {
-				if ( ib_client_send_logmsg(data_str, strlen(data_str) + 1) ) {	// Try to send current msg
+				data_len = strlen(data_str) + 1;
+				if ( ib_client_send_logmsg(data_str, data_len) ) {	// Try to send current msg
 					ESP_LOGE(__func__,"Cannot send");
+					save_to_flash(data_str, data_len);
 				} else {
 					ESP_LOGD(__func__,"Send JSON log msg");
 				}
@@ -160,11 +171,14 @@ void ib_log_init() {
 	xEventGroupWaitBits(wifi_event_group, CONNECTED_BIT, pdFALSE, pdTRUE, portMAX_DELAY);
 	xEventGroupWaitBits(ib_sntp_event_group, IB_TIME_SET_BIT, pdFALSE, pdTRUE, portMAX_DELAY);
 	time_t rawtime;
-	ib_log_t msg;
 	time(&rawtime);
+	ib_log_t msg = {.log_type = IB_SYSTEM_UP, .code = 0};
 	localtime_r(&rawtime, &msg.timestamp);
-	msg.code = 0;
-	msg.log_type = IB_SYSTEM_UP;
+
+	if ( ibd_log_check_mem_enough() ) {
+		ESP_LOGE(TAG, "Not enough memory in partition SPIFFS");
+		return;
+	}
 
 	g_queue = xQueueCreate(QUEUE_DEPTH, sizeof(ib_log_t));
 	if ( !g_queue ) {
@@ -178,7 +192,7 @@ void ib_log_init() {
 		return;
 	}
 
-	// todo LOGGER: Check flash free size
+
 
 	xQueueSend(g_queue, &msg, 0);
 	ESP_LOGI(TAG, "Initialized");

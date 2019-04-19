@@ -29,15 +29,15 @@
 
 #endif
 
-const char *FILE_DB_BIN = 		  	"/spiffs/ib_database/ibd.bin";
-const char *FILE_DB_TEMP = 	  		"/spiffs/ib_database/ibd_temp.bin";
-const char *FILE_INFO = 		  	"/spiffs/ib_database/info_object.bin";
-const char *FILE_CSV = 			  	"/spiffs/ib_database/database.csv";
-const char *READ_PARAM = 			"rb";
-const char *WRITE_PARAM = 			"wb";
-const char *APPEND_PARAM = 			"ab";
-const char *APPEND_CSV_PARAM = 		"a";
-const char *READ_CSV_PARAM = 		"r";
+const char *FILE_DB_BIN	=				"/spiffs/ibd/ibd.bin";
+const char *FILE_DB_TEMP =	 	  		"/spiffs/ibd/ibd_temp.bin";
+#define FILE_INFO 		 		  	"/spiffs/ibd/info_object.bin"
+#define FILE_CSV 	 			  	"/spiffs/ibd/database.csv"
+#define READ_PARAM 					"rb"
+#define WRITE_PARAM 				"wb"
+#define APPEND_PARAM 	 			"ab"
+#define APPEND_CSV_PARAM 			"a"
+#define READ_CSV_PARAM  			"r"
 
 
 /** ret 0 no info file */
@@ -75,7 +75,61 @@ size_t get_file_size(FILE *fptr) {
 	return free;
 }
 
-/** \brief Saves data into FILE_CSV
+/** \brief Delete the log file from flash.
+ *
+ * */
+void ibd_log_delete() {
+	struct stat st;
+	if ( !stat(FILE_LOG, &st) ) {
+		unlink(FILE_LOG);
+	}
+	return;
+}
+
+/** \ret 1 Exists
+ *  	 0 Does not exist
+ * */
+int ibd_log_check_file_exist() {
+	struct stat st;
+	if ( !stat(FILE_LOG, &st) ) {
+		return 1;
+	}
+	return 0;
+}
+
+/** \brief Saves log data.
+ *  \ret Written characters.
+ * */
+esp_err_t ibd_log_append_file(char *data, size_t *data_length) {
+	FILE *fptr;
+	esp_err_t ret = IBD_OK;
+	if ( !data || !*data_length)
+		return IBD_ERR_INVALID_PARAM;
+	if ( !(fptr = fopen(FILE_LOG, "a")) )
+		return IBD_ERR_FILE_OPEN;
+#ifdef TEST_MODE
+	ESP_LOGD(__func__,"%s",data);
+#endif
+	const size_t len = *data_length;
+	const size_t fsize = get_file_size(fptr);
+	size_t free_space = IBD_LOG_FILE_SIZE - fsize;
+	size_t n_chars;
+	if ( fsize > IBD_LOG_FILE_CRITICAL ) {
+		ret = IBD_ERR_CRITICAL_SIZE;
+	}
+	if ( *data_length > free_space ) {
+		fclose(fptr);
+		return IBD_ERR_NO_MEM;
+	}
+	*data_length = fwrite(data, sizeof(char), *data_length, fptr);
+	if ( *data_length !=  len) {
+		ret = IBD_ERR_WRITE;
+	}
+	fclose(fptr);
+	return ret;
+}
+
+/** \brief Saves data to FILE_CSV
  *  If checksum param and the current saved csv checksum does not match, current data will be lost.
  *  \param data data to be saved in csv file
  *  	   data_length length of data in bytes
@@ -166,6 +220,25 @@ ib_data_t *create_ib_data(uint64_t code, char *crons) {
 	else
 		ret_data->crons = NULL;
 	return ret_data;
+}
+
+/** \brief Check log file fit in flash.
+ * 	\ret 0 Enough memory.
+ * 	\ret 1 Not enough memory.
+ *  */
+int ibd_log_check_mem_enough() {
+	size_t fsize = 0, free_bytes, total_bytes, used_bytes;
+	FILE *fptr = fopen(FILE_LOG, "rb");
+	if ( fptr ) {
+		fsize = get_file_size(fptr);
+		fclose(fptr);
+	}
+	esp_spiffs_info(IBD_PARTITION_LABEL, &total_bytes, &used_bytes);
+	free_bytes = total_bytes - used_bytes + fsize;
+	if ( free_bytes < IBD_LOG_FILE_SIZE ) {
+		return 1;
+	}
+	return 0;
 }
 
 /** \brief Check the SPIFFS partition and delete active file when found space is not enough. Used when initialization.

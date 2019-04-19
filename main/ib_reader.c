@@ -73,6 +73,7 @@ typedef void ( *p_state_handler )(inputs_t input);
 /** FreeRTOS handlers */
 typedef struct ib_handles{
 	p_state_handler fsm_state;
+	p_state_handler fsm_prev_state;
 	SemaphoreHandle_t st_semaphor;
 	QueueHandle_t input_q;
 	TaskHandle_t reader_t;
@@ -164,6 +165,7 @@ static void send_info(infos_t info){
  *  */
 static void switch_state_to( p_state_handler new_state, TickType_t wait){
 	if ( xSemaphoreTake(g_handlers.st_semaphor, wait) == pdTRUE ) {
+		g_handlers.fsm_prev_state = g_handlers.fsm_state;
 		g_handlers.fsm_state = new_state;
 		xSemaphoreGive(g_handlers.st_semaphor);
 	} else {
@@ -177,44 +179,48 @@ static void switch_state_to( p_state_handler new_state, TickType_t wait){
  *
  * */
 static int key_code_lookup(uint64_t code){
-	esp_err_t ret;
+	esp_err_t ret, retval;
 	ib_data_t *data = NULL;
 	time_t time_raw;
 	struct tm time_info;
-	ib_log_t msg;
+	char *type = NULL;
 
 	time(&time_raw);
 	localtime_r(&time_raw, &time_info);
-	msg.timestamp = time_info;
 
-	msg.code = code;
-
-	ret = ibd_get_by_code(code, &data);
-	if(ret == IBD_FOUND){
-		if ( !data ) {
-			ESP_LOGE(__func__, "Object ptr null");
+	if ( ib_waiting_for_su_touch() ) {
+		type = IB_LOG_LOG_FILE_FULL;
+		retval = 0;
+	} else {
+		ret = ibd_get_by_code(code, &data);
+		if( ret == IBD_FOUND ) { // @suppress("Assignment in condition")
+			if ( !data ) {
+				ESP_LOGE(__func__, "Object ptr null");
+				return 0;
+			}
+			if ( checkcrons(data->crons, &time_info) ) {
+				type = IB_LOG_KEY_ACCESS_GAINED;
+				ESP_LOGI(TAG, "Key gained access");
+				retval = 1;
+			} else {
+				type = IB_LOG_KEY_OUT_OF_DOMAIN;
+				ESP_LOGW(TAG, "Key out of time-domain");
+				retval = 0;
+			}
+		}
+		else if(ret == IBD_ERR_NOT_FOUND) {
+			type = IB_LOG_KEY_INVALID_KEY_TOUCH;
+			ESP_LOGW(__func__,"Key not found!");
+			retval = 0;
+		}
+		else {
+			ESP_LOGW(__func__,"ibd_get_by_code errcode:%x",ret);
 			return 0;
 		}
-		ret = checkcrons(data->crons, &time_info);
-		if ( ret ) {
-			msg.log_type = IB_LOG_KEY_ACCESS_GAINED;
-			ESP_LOGI(TAG, "Key gained access");
-		} else {
-			msg.log_type = IB_LOG_KEY_OUT_OF_DOMAIN;
-			ESP_LOGW(TAG, "Key out of time-domain");
-		}
 	}
-	else if(ret == IBD_ERR_NOT_FOUND) {
-		msg.log_type = IB_LOG_KEY_INVALID_KEY_TOUCH;
-		ESP_LOGW(__func__,"Key not found!");
-		ret = 0;
-	}
-	else {
-		ESP_LOGW(__func__,"ibd_get_by_code errcode:%x",ret);
-		return 0;
-	}
+	ib_log_t msg = { .log_type = type, .timestamp = time_info, .code = code};
 	ib_log_post(&msg);
-	return ret;
+	return retval;
 }
 
 /**
@@ -418,14 +424,23 @@ void start_ib_reader(){
 	initialized = 1;
 }
 
+int ib_waiting_for_su_touch() {
+	return (g_handlers.fsm_state == st_wait_for_clear_log) ? 1 : 0;
+}
+
 /** \brief Wait for superuser touch intervention.
  *	Bring the device into a waiting state.
  * */
 void ib_need_su_touch() {
+	RELAY_CLOSE;
+	LED_GREEN(ON);
+	LED_RED(ON);
 	switch_state_to(st_wait_for_clear_log, portMAX_DELAY);
 }
 
 void ib_not_need_su_touch() {
+	LED_GREEN(ON);
+	LED_RED(OFF);
 	switch_state_to(st_check_touch, portMAX_DELAY);
 }
 
@@ -437,7 +452,13 @@ static void st_wait_for_clear_log(inputs_t input) {
 			LED_GREEN(ON);
 			LED_RED(OFF);
 			switch_state_to(st_check_touch, MUT_WAIT);
-			// TODO LOG: delete log file.
+			ibd_log_delete();
+			break;
+		case input_button:
+			LED_GREEN(OFF);
+			RELAY_OPEN;
+			timeout_set(g_data.openingtime);
+			switch_state_to(st_access_allow, MUT_WAIT);
 			break;
 		default:
 			break;
@@ -451,7 +472,7 @@ static void st_access_allow(inputs_t input) {
 			RELAY_CLOSE;
 			infos_t info = blink_none;
 			send_info(info);
-			switch_state_to(st_check_touch, MUT_WAIT);
+			switch_state_to(g_handlers.fsm_prev_state, MUT_WAIT);
 			break;
 		default:
 			break;

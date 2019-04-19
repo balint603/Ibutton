@@ -28,4 +28,5 @@ void start_ib_reader();
 char *ib_get_device_name();
 void ib_need_su_touch();
 void ib_not_need_su_touch();
+int ib_waiting_for_su_touch();
 #endif /* MAIN_IB_READER_H_ */

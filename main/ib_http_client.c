@@ -27,6 +27,7 @@
 
 #define HTTP_RECEIVE_BUFFER 	2048
 #define HTTP_CHECKSUM_BUFFER 	512
+#define HTTP_POST_FILE_BUFFER	4096
 
 const char key_server_info[] = "db_url";
 const char namespace[] = "wifi_nvs";
@@ -58,7 +59,7 @@ typedef struct ib_server_conf {
 #define BIT_START_UPDATING 		BIT0					// Event group bit
 #define BIT_START_UPDATE_NOW 	BIT1
 
-EventGroupHandle_t g_event_group;
+EventGroupHandle_t g_client_event_group;
 TaskHandle_t g_update_handler;				// Task handler
 
 ib_server_conf_t g_server_conf;
@@ -245,13 +246,78 @@ int get_checksum_from_server(uint64_t *checksum) {
     return 0;
 }
 
+/** \brief Post the file from flash
+ * \ret ESP_ERR_NOT_FOUND File cannot be opened.
+ *		ESP_ERR_HTTP_CONNECT HTTP connection failure.
+ *		ESP_ERR_HTTP_WRITE_DATA When the whole file cannot be read or cannot write to http stream.
+ */
+esp_err_t post_logfile() {
+	esp_err_t ret;
+	FILE *fptr;
+	char buff[HTTP_POST_FILE_BUFFER];
+	size_t fsize = 0, buflen;
 
+	fptr = fopen(FILE_LOG, "r");
+	if ( !fptr ) {
+		return ESP_ERR_NOT_FOUND;
+	}
+	fsize = get_file_size(fptr);
+	esp_http_client_config_t config = {
+			.url = g_server_conf.log_url,
+			.event_handler = _http_event_handler
+	};
+
+	esp_http_client_handle_t client = esp_http_client_init(&config);
+	if ( !client ) {
+		fclose(fptr);
+		return ESP_ERR_HTTP_CONNECT;
+	}
+	esp_http_client_set_method(client, HTTP_METHOD_POST);
+	ret = esp_http_client_open(client, fsize);
+	if ( ret != ESP_OK ) {
+		esp_http_client_cleanup(client);
+		fclose(fptr);
+		return ESP_ERR_HTTP_FETCH_HEADER;
+	}
+	while ( fsize > 0 ) {
+		buflen = (fsize > HTTP_POST_FILE_BUFFER) ?
+				HTTP_POST_FILE_BUFFER : fsize;
+
+		ret = fread(buff, sizeof(char), buflen, fptr);
+		if ( ret != buflen ) {
+			ESP_LOGD(__func__, "FILE read bytes remaining");
+			fclose(fptr);
+			return ESP_ERR_HTTP_WRITE_DATA;
+		}
+#ifdef TESTMODE
+		ESP_LOGD(__func__,"%s", buff);
+#endif
+		ret = esp_http_client_write(client, buff, buflen);
+		fsize -= ret;
+		if ( ret != buflen ) {
+			ESP_LOGD(__func__, "HTTP write failed: %i bytes remaining", fsize - ret);
+			fclose(fptr);
+			return ESP_ERR_HTTP_WRITE_DATA;
+		}
+	}
+	ret = esp_http_client_get_status_code(client);
+	ESP_LOGD(__func__,"Response status code: %i", ret);
+	esp_http_client_close(client);
+	esp_http_client_cleanup(client);
+	fclose(fptr);
+	return ESP_OK;
+}
+
+/** \brief Sync task.
+ * Get the current database checksum and post the logfile if exist.
+ * Task can be hold by
+ * */
 void update_from_server_task() {
 	uint64_t checksum_got;
 	info_t checksums;
-
+	esp_err_t ret;
     while ( 1 ) {
-    	xEventGroupWaitBits(g_event_group, BIT_START_UPDATING,
+    	xEventGroupWaitBits(g_client_event_group, BIT_START_UPDATING,
     			pdFALSE, pdTRUE, portMAX_DELAY);
 
     	if ( !get_checksum_from_server(&checksum_got) ) {		// Successfully connected and downloaded
@@ -265,7 +331,18 @@ void update_from_server_task() {
 				}
 			}
     	}
-    	xEventGroupWaitBits(g_event_group, BIT_START_UPDATE_NOW,
+    	if ( ibd_log_check_file_exist() ) {
+    		ret = post_logfile();
+    		if ( ret != ESP_OK ) {
+    			ESP_LOGE(__func__,"Cannot post logfile: %s", esp_err_to_name(ret));
+    		} else {
+    			ibd_log_delete();
+    			if ( ib_waiting_for_su_touch() ) {
+    				ib_not_need_su_touch();
+    			}
+    		}
+    	}
+    	xEventGroupWaitBits(g_client_event_group, BIT_START_UPDATE_NOW,
     			pdTRUE, pdTRUE, UPDATES_PERIOD_MS / portTICK_PERIOD_MS);
     }
 }
@@ -313,22 +390,21 @@ int ib_client_send_logmsg(char *data, size_t length) {
 
 /** Stop updating periodically */
 void ib_client_stop_updating() {
-	xEventGroupClearBits(g_event_group, BIT_START_UPDATING);
+	xEventGroupClearBits(g_client_event_group, BIT_START_UPDATING);
 }
 
 /** Start updating periodically */
 void ib_client_start_updating() {
-	xEventGroupSetBits(g_event_group, BIT_START_UPDATING);
+	xEventGroupSetBits(g_client_event_group, BIT_START_UPDATING);
 }
 
 /** \brief Create a polling task.
- *
  * */
 esp_err_t ib_client_init() {
 	esp_err_t ret;
 	xEventGroupWaitBits(wifi_event_group, CONNECTED_BIT, pdFALSE, pdTRUE, portMAX_DELAY);
 
-	g_event_group = xEventGroupCreate();
+	g_client_event_group = xEventGroupCreate();
 
 	if ( pdPASS != xTaskCreate(&update_from_server_task, "Database update",
 			8192, NULL, 5, &g_update_handler) ) {

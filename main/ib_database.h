@@ -71,6 +71,7 @@
 #define IBD_FILE_SIZE 			(256 * 1024)	// temporary and active files size
 #define IBD_CSV_FILE_SIZE		(512 * 1024)	// csv file size
 #define IBD_LOG_FILE_SIZE		(512 * 1024)	// Log file size
+#define IBD_LOG_FILE_CRITICAL	(500 * 1024 )	// Log file critical size
 
 /** CSV file informations */
 #define IBD_CRON_MAX_SIZE 		256				// Max cron size
@@ -102,6 +103,11 @@
 #define IBD_ERR_INVALID_PARAM   (IBD_ERR_BASE + 0x05)
 #define IBD_ERR_NO_MEM   		(IBD_ERR_BASE + 0x06)
 #define IBD_ERR_WRITE   		(IBD_ERR_BASE + 0x07)
+#define IBD_ERR_CRITICAL_SIZE	(IBD_ERR_BASE + 0x08)
+
+
+/** LOGFILE path */
+#define FILE_LOG 	 				"/spiffs/ibd/ibutton.log"
 
 
 /** \brief Part of the ib_data_t structure.
@@ -140,7 +146,7 @@ ib_data_t *create_ib_data(uint64_t code, char *crons);
 unsigned long ib_get_checksum();
 
 
-
+/** DATABASE */
 esp_err_t ibd_init();
 
 esp_err_t ibd_get_by_code(uint64_t code_val, ib_data_t **d_ptr);
@@ -151,6 +157,16 @@ esp_err_t ibd_append_csv_file(char *data, int *data_length, uint64_t checksum);
 
 esp_err_t ibd_make_bin_database();
 
+/** LOG */
+esp_err_t ibd_log_append_file(char *data, size_t *data_length);
+
+int ibd_log_check_mem_enough();
+
+void ibd_log_delete();
+
+int ibd_log_check_file_exist();
+
+FILE *ibd_log_get_fptr(const char *mode);
 
 
 uint32_t csv_eat_a_line(char *line, int size, char **from);

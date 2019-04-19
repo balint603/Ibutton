@@ -14,15 +14,16 @@
 
 typedef struct ib_log {
 	uint64_t code;
-	uint8_t log_type;
+	const char *log_type;
 	struct tm timestamp;
 } ib_log_t;
 
 /** LOGTYPES */
-#define IB_LOG_KEY_ACCESS_GAINED 		0
-#define IB_LOG_KEY_INVALID_KEY_TOUCH 	1
-#define IB_LOG_KEY_OUT_OF_DOMAIN 		2
-#define IB_SYSTEM_UP			 		3
+#define IB_LOG_KEY_ACCESS_GAINED 		"AA"
+#define IB_LOG_KEY_INVALID_KEY_TOUCH 	"AD"
+#define IB_LOG_LOG_FILE_FULL	 		"FF"
+#define IB_LOG_KEY_OUT_OF_DOMAIN 		"OD"
+#define IB_SYSTEM_UP			 		"UP"
 
 #define IB_LOG_ERR_CONNECTION_LOST 100
 #define IB_LOG_ERR_CONNECTION_OK   200
