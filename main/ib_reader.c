@@ -20,13 +20,17 @@
 #include "ib_reader.h"
 
 #include <stdio.h>
+#include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/timers.h"
 #include "esp_system.h"
 #include "esp_log.h"
 #include "esp_err.h"
+#include "argtable3/argtable3.h"
+#include "cmd_decl.h"
 #include "driver/uart.h"
 #include "time.h"
+#include "nvs.h"
 
 #include "ibutton.h"
 #include "cron.h"
@@ -34,6 +38,9 @@
 #include "ib_log.h"
 
 #define TAG "IB_READER"
+
+const char READER_KEY_NVS[] = "reader_config";
+const char READER_NSPACE_NVS[] = "reader_ns";
 
 /** Input types of the state machine */
 typedef enum inputs {
@@ -61,11 +68,6 @@ typedef struct ib_conf{
 	unsigned int buttonenable;
 	char devicename[128];
 } ib_conf_t;
-
-/** Operation mode types */
-#define MODE_NORMAL 0
-#define MODE_BISTABLE 255
-#define MODE_BISTABLE_SAME_KEY 511
 
 /** Holds the current state */
 typedef void ( *p_state_handler )(inputs_t input);
@@ -106,7 +108,7 @@ typedef struct ib_handles{
 
 volatile uint32_t initialized;
 
-ib_conf_t g_data = {
+ib_conf_t g_config = {
 		.openingtime = STANDARD_OPENING_TIME,
 		.devicename = STANDARD_DEVICE_NAME
 };
@@ -114,6 +116,8 @@ ib_handlers g_handlers;
 
 volatile BaseType_t g_enable_reader = pdTRUE;
 
+volatile uint64_t g_accessed_key_prev;
+volatile uint64_t g_accessed_key;
 
 /** called: state functions.
  *  This functions performs several operations,
@@ -125,6 +129,79 @@ static void st_access_allow();
 static void st_su_mode();
 static void st_check_touch();
 
+static void save_config();
+
+static void refresh_config() {
+	nvs_handle handl;
+	esp_err_t ret;
+	size_t size = sizeof(g_config);
+
+	ret = nvs_open(READER_NSPACE_NVS, NVS_READONLY, &handl);
+	if ( ret == ESP_OK ) { // Found
+		ret = nvs_get_blob(handl, READER_KEY_NVS, &g_config, &size);
+		nvs_close(handl);
+		if ( ret == ESP_OK ) {
+			ESP_LOGI(TAG, "Found configuration in NVS");
+		} else {
+			ESP_LOGE(__func__,"NVS get: %s", esp_err_to_name(ret));
+		}
+		return;
+	} else {
+		ESP_LOGE(__func__,"NVS open: %s", esp_err_to_name(ret));
+	}
+	ESP_LOGI(TAG, "Not found configuration in NVS");
+	g_config.buttonenable = 1;
+	strcpy(g_config.devicename, STANDARD_DEVICE_NAME);
+	g_config.mode = IB_READER_MODE_NORMAL;
+	g_config.openingtime = 3000;
+	g_config.su_key = 0;
+	save_config();
+}
+
+static void save_config() {
+	nvs_handle handler;
+	esp_err_t ret;
+	ret = nvs_open(READER_NSPACE_NVS, NVS_READWRITE, &handler);
+	if ( ret != ESP_OK ) {
+		ESP_ERROR_CHECK(ret);
+		return;
+	}
+	ret = nvs_set_blob(handler, READER_KEY_NVS, &g_config, sizeof(g_config));
+	if ( ret != ESP_OK ) {
+		ESP_ERROR_CHECK(ret);
+		nvs_close(handler);
+		return;
+	}
+	ret = nvs_commit(handler);
+	if ( ret != ESP_OK ) {
+		ESP_ERROR_CHECK(ret);
+	}
+	nvs_close(handler);
+	refresh_config();
+}
+
+void ib_set_device_name(const char *name){
+	strncpy(g_config.devicename, name, 127);
+	save_config();
+}
+void ib_set_su_key(uint64_t code){
+	g_config.su_key = code;
+	save_config();
+}
+void ib_set_opening_time(uint32_t ms){
+	g_config.openingtime = ms;
+	save_config();
+}
+void ib_set_mode(uint32_t mode){
+	if ( mode == IB_READER_MODE_NORMAL ||
+		 mode == IB_READER_MODE_BISTABLE ||
+		 mode == IB_READER_MODE_BISTABLE_SAME_KEY) {
+		g_config.mode = mode;
+		save_config();
+		return;
+	}
+	ESP_LOGE(TAG,"Invalid mode");
+}
 
 /**
  * timeout_tim software timer callback function.
@@ -218,7 +295,7 @@ static int key_code_lookup(uint64_t code){
 			return 0;
 		}
 	}
-	ib_log_t msg = { .log_type = type, .timestamp = time_info, .code = code};
+	ib_log_t msg = { .log_type = type, .value = code};
 	ib_log_post(&msg);
 	return retval;
 }
@@ -231,11 +308,13 @@ static int key_code_lookup(uint64_t code){
 static void key_touched_event(uint64_t code){
 	inputs_t input;
 
-// todo search from memory and make decision
-	if(key_code_lookup(code)) {
+	if (key_code_lookup(code)) {
+		g_accessed_key = code;
 		input = input_touched;
 	}
-	else {
+	else if (code == g_config.su_key){
+		input = input_su_touched;
+	} else {
 		input = input_invalid_touched;
 	}
 	xQueueSend(g_handlers.input_q,&input,0);
@@ -404,7 +483,7 @@ static void gpio_set(){
 
 /** \brief Get the current device name. */
 char *ib_get_device_name() {
-	return g_data.devicename;
+	return g_config.devicename;
 }
 
 
@@ -418,6 +497,7 @@ void start_ib_reader(){
 	}
 
 	gpio_set();
+	refresh_config();
 	onewire_init(PIN_DATA);
 	create_tasks();
 	g_handlers.st_semaphor = xSemaphoreCreateMutex();
@@ -457,7 +537,7 @@ static void st_wait_for_clear_log(inputs_t input) {
 		case input_button:
 			LED_GREEN(OFF);
 			RELAY_OPEN;
-			timeout_set(g_data.openingtime);
+			timeout_set(g_config.openingtime);
 			switch_state_to(st_access_allow, MUT_WAIT);
 			break;
 		default:
@@ -473,6 +553,36 @@ static void st_access_allow(inputs_t input) {
 			infos_t info = blink_none;
 			send_info(info);
 			switch_state_to(g_handlers.fsm_prev_state, MUT_WAIT);
+			break;
+		default:
+			break;
+	}
+}
+
+static void st_acces_allow_bistable(inputs_t input) {
+	switch(input) {
+		case input_touched:
+			LED_GREEN(ON);
+			RELAY_CLOSE;
+			infos_t info = blink_none;
+			send_info(info);
+			switch_state_to(g_handlers.fsm_prev_state, MUT_WAIT);
+			break;
+		default:
+			break;
+	}
+}
+
+static void st_acces_allow_bistable_same_key(inputs_t input) {
+	switch(input) {
+		case input_touched:
+			if ( g_accessed_key == g_accessed_key_prev ) {
+				LED_GREEN(ON);
+				RELAY_CLOSE;
+				infos_t info = blink_none;
+				send_info(info);
+				switch_state_to(g_handlers.fsm_prev_state, MUT_WAIT);
+			}
 			break;
 		default:
 			break;
@@ -507,15 +617,16 @@ static void st_check_touch(inputs_t input) {
 		case input_touched:
 			LED_GREEN(OFF);
 			RELAY_OPEN;
-			switch (g_data.mode) {
-				case MODE_BISTABLE:
-					// todo
+			switch (g_config.mode) {
+				case IB_READER_MODE_BISTABLE:
+					switch_state_to(st_acces_allow_bistable, MUT_WAIT);
 					break;
-				case MODE_BISTABLE_SAME_KEY:
-					// todo
+				case IB_READER_MODE_BISTABLE_SAME_KEY:
+					g_accessed_key_prev = g_accessed_key;
+					switch_state_to(st_acces_allow_bistable_same_key, MUT_WAIT);
 					break;
 				default:
-					timeout_set(g_data.openingtime);
+					timeout_set(g_config.openingtime);
 					switch_state_to(st_access_allow, MUT_WAIT);
 					break;
 			}
@@ -532,7 +643,7 @@ static void st_check_touch(inputs_t input) {
 		case input_button:
 			LED_GREEN(OFF);
 			RELAY_OPEN;
-			timeout_set(g_data.openingtime);
+			timeout_set(g_config.openingtime);
 			switch_state_to(st_access_allow, MUT_WAIT);
 			break;
 		default:
@@ -540,7 +651,6 @@ static void st_check_touch(inputs_t input) {
 	}
 
 }
-
 
 
 

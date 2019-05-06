@@ -54,6 +54,7 @@ void ib_log_post(ib_log_t *msg) {
 }
 
 cJSON *create_json_msg(ib_log_t *logmsg) {
+
 	cJSON *time_j = NULL;
 	char code_buf[17];
 	cJSON *logm = cJSON_CreateObject();
@@ -61,11 +62,16 @@ cJSON *create_json_msg(ib_log_t *logmsg) {
 		return NULL;
 	}
 
+	time_t time_raw;
+	struct tm time_now;
+	time(&time_raw);
+	localtime_r(&time_raw, &time_now);
+
 	if ( !cJSON_AddStringToObject(logm, "device", ib_get_device_name()) ) {
 		goto end;
 	}
 
-	snprintf(code_buf, sizeof(code_buf), "%llX", logmsg->code);
+	snprintf(code_buf, sizeof(code_buf), "%llX", logmsg->value);
 	if ( !cJSON_AddStringToObject(logm, "key code", code_buf) ) {
 		goto end;
 	}
@@ -79,31 +85,31 @@ cJSON *create_json_msg(ib_log_t *logmsg) {
 		goto end;
 	}
 
-	if ( !cJSON_AddNumberToObject(time_j, "sec", logmsg->timestamp.tm_sec) ) {
+	if ( !cJSON_AddNumberToObject(time_j, "sec", time_now.tm_sec) ) {
 		goto end;
 	}
 
-	if ( !cJSON_AddNumberToObject(time_j, "min", logmsg->timestamp.tm_min) ) {
+	if ( !cJSON_AddNumberToObject(time_j, "min", time_now.tm_min) ) {
 		goto end;
 	}
 
-	if ( !cJSON_AddNumberToObject(time_j, "hour", logmsg->timestamp.tm_hour) ) {
+	if ( !cJSON_AddNumberToObject(time_j, "hour", time_now.tm_hour) ) {
 		goto end;
 	}
 
-	if ( !cJSON_AddNumberToObject(time_j, "day", logmsg->timestamp.tm_mday) ) {
+	if ( !cJSON_AddNumberToObject(time_j, "day", time_now.tm_mday) ) {
 		goto end;
 	}
 
-	if ( !cJSON_AddNumberToObject(time_j, "month", logmsg->timestamp.tm_mon) ) {
+	if ( !cJSON_AddNumberToObject(time_j, "month", time_now.tm_mon) ) {
 		goto end;
 	}
 
-	if ( !cJSON_AddNumberToObject(time_j, "year", logmsg->timestamp.tm_year) ) {
+	if ( !cJSON_AddNumberToObject(time_j, "year", time_now.tm_year) ) {
 		goto end;
 	}
 
-	if ( !cJSON_AddNumberToObject(time_j, "weekday", logmsg->timestamp.tm_wday) ) {
+	if ( !cJSON_AddNumberToObject(time_j, "weekday", time_now.tm_wday) ) {
 		goto end;
 	}
 	cJSON_AddItemToObject(logm, "time stamp", time_j );
@@ -170,10 +176,8 @@ void ib_log_init() {
 	}
 	xEventGroupWaitBits(wifi_event_group, CONNECTED_BIT, pdFALSE, pdTRUE, portMAX_DELAY);
 	xEventGroupWaitBits(ib_sntp_event_group, IB_TIME_SET_BIT, pdFALSE, pdTRUE, portMAX_DELAY);
-	time_t rawtime;
-	time(&rawtime);
-	ib_log_t msg = {.log_type = IB_SYSTEM_UP, .code = 0};
-	localtime_r(&rawtime, &msg.timestamp);
+
+	ib_log_t msg = {.log_type = IB_SYSTEM_UP, .value = 0};
 
 	if ( ibd_log_check_mem_enough() ) {
 		ESP_LOGE(TAG, "Not enough memory in partition SPIFFS");

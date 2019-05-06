@@ -23,8 +23,10 @@
 #include "sdkconfig.h"
 #include "cmd_tests.h"
 #include "ib_http_client.h"
+#include "ib_reader.h"
 
-#include "codeflash.h"
+
+#define TEST_COMMANDS
 
 #ifdef CONFIG_FREERTOS_USE_STATS_FORMATTING_FUNCTIONS
 #define WITH_TASKS_INFO 1
@@ -34,28 +36,9 @@
 
 static const char *TAG = "cmd_system";
 
-static void register_free();
-static void register_heap();
-static void register_version();
-static void register_restart();
 #if WITH_TASKS_INFO
 static void register_tasks();
 #endif
-
-void register_system()
-{
-    register_free();
-    register_heap();
-    register_version();
-    register_restart();
-    register_setserver();
-#ifdef TEST_COMMANDS
-	register_tests();
-#endif
-#if WITH_TASKS_INFO
-    register_tasks();
-#endif
-}
 
 /* 'version' command */
 static int get_version(int argc, char **argv)
@@ -143,6 +126,135 @@ static void register_heap()
     };
     ESP_ERROR_CHECK( esp_console_cmd_register(&heap_cmd) );
 
+}
+
+static struct {
+	struct arg_str *name;
+    struct arg_end *end;
+} setname_args;
+
+static struct {
+	struct arg_str *code;
+    struct arg_end *end;
+} setsu_args;
+
+static struct {
+	struct arg_int *time;
+    struct arg_end *end;
+} settime_args;
+
+static struct {
+	struct arg_int *mode;
+    struct arg_end *end;
+} setmode_args;
+
+static int setname(int argc, char **argv) {
+	int nerrors = arg_parse(argc, argv, (void**) &setname_args);
+	if ( nerrors ) {
+		arg_print_errors(stderr, setname_args.end, argv[0]);
+		return 1;
+	}
+	ESP_LOGI(TAG, "Change name to %s", setname_args.name->sval[0]);
+	ib_set_device_name(setname_args.name->sval[0]);
+	return 0;
+}
+
+static int setsu(int argc, char **argv) {
+	uint64_t code;
+	int nerrors = arg_parse(argc, argv, (void**) &setsu_args);
+	if ( nerrors ) {
+		arg_print_errors(stderr, setsu_args.end, argv[0]);
+		return 1;
+	}
+	code = strtoull(setsu_args.code->sval[0], NULL, 16);
+	ESP_LOGI(TAG, "Set code to: %lld", code);
+	ib_set_su_key(code);
+	return 0;
+}
+
+static int settime(int argc, char **argv) {
+	int nerrors = arg_parse(argc, argv, (void**) &settime_args);
+	if ( nerrors ) {
+		arg_print_errors(stderr, settime_args.end, argv[0]);
+		return 1;
+	}
+	ESP_LOGI(TAG, "Set opening time to: %i",settime_args.time->ival[0]);
+	ib_set_opening_time(settime_args.time->ival[0]);
+	return 0;
+}
+
+static int setmode(int argc, char **argv) {
+	int nerrors = arg_parse(argc, argv, (void**) &setmode_args);
+	if ( nerrors ) {
+		arg_print_errors(stderr, setmode_args.end, argv[0]);
+		return 1;
+	}
+	ESP_LOGI(TAG, "Set mode to: %i",settime_args.time->ival[0]);
+	ib_set_mode(setmode_args.mode->ival[0]);
+	return 0;
+}
+
+static void register_setters() {
+	setname_args.name = arg_str1(NULL, NULL, "<name>", "Device name");
+	setname_args.end = arg_end(0);
+	const esp_console_cmd_t setname_cmd = {
+		.command = "name",
+		.help = "Set the device name",
+		.hint = NULL,
+		.func = &setname,
+		.argtable = &setname_args
+	};
+	ESP_ERROR_CHECK(esp_console_cmd_register(&setname_cmd))
+
+	setsu_args.code = arg_str1(NULL, NULL, "<su code>", "Superuser key code");
+	setsu_args.end = arg_end(0);
+	const esp_console_cmd_t setsu_cmd = {
+		.command = "setsu",
+		.help = "Set the su key code",
+		.hint = NULL,
+		.func = &setsu,
+		.argtable = &setsu_args
+	};
+	ESP_ERROR_CHECK(esp_console_cmd_register(&setsu_cmd))
+
+	settime_args.time = arg_int1(NULL, NULL, "<ms>", "Set the opening time");
+	settime_args.end = arg_end(0);
+	const esp_console_cmd_t settime_cmd = {
+		.command = "opening",
+		.help = "Change opening time",
+		.hint = NULL,
+		.func = &settime,
+		.argtable = &settime_args
+	};
+	ESP_ERROR_CHECK(esp_console_cmd_register(&settime_cmd))
+
+	setmode_args.mode = arg_int1(NULL, NULL,
+			"<mode>", "Set the operation mode: \n 0: monostable\n1: bistable\n2: bistable with the same key");
+	setmode_args.end = arg_end(0);
+	const esp_console_cmd_t setmode_cmd = {
+		.command = "mode",
+		.help = "Change the operation",
+		.hint = NULL,
+		.func = &setmode,
+		.argtable = &setmode_args
+	};
+	ESP_ERROR_CHECK(esp_console_cmd_register(&setmode_cmd))
+}
+
+void register_system()
+{
+    register_free();
+    register_heap();
+    register_version();
+    register_restart();
+    register_setserver();
+    register_setters();
+#ifdef TEST_COMMANDS
+	register_tests();
+#endif
+#if WITH_TASKS_INFO
+    register_tasks();
+#endif
 }
 
 /** 'tasks' command prints the list of tasks and related information */

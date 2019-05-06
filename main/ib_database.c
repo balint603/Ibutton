@@ -18,6 +18,7 @@
 #include "nvs_flash.h"
 #include "driver/gpio.h"
 
+#include "ib_log.h"
 #include "ib_database.h"
 
 #define TEST_MODE
@@ -29,8 +30,8 @@
 
 #endif
 
-const char *FILE_DB_BIN	=				"/spiffs/ibd/ibd.bin";
-const char *FILE_DB_TEMP =	 	  		"/spiffs/ibd/ibd_temp.bin";
+const char *FILE_DB_BIN	=			"/spiffs/ibd/ibd.bin";
+const char *FILE_DB_TEMP =	 	  	"/spiffs/ibd/ibd_temp.bin";
 #define FILE_INFO 		 		  	"/spiffs/ibd/info_object.bin"
 #define FILE_CSV 	 			  	"/spiffs/ibd/database.csv"
 #define READ_PARAM 					"rb"
@@ -157,7 +158,7 @@ esp_err_t ibd_append_csv_file(char *data, int *data_length, uint64_t checksum) {
 	}
 	size_t free_space = IBD_CSV_FILE_SIZE - get_file_size(fptr);
 	if ( *data_length > free_space ) {
-		return IBD_ERR_NO_MEM;				// TODO rather: cut the data until last line which fits in
+		return IBD_ERR_NO_MEM;
 	}
 	if ( *data_length != fwrite(data, sizeof(char), *data_length, fptr) ) {
 		fclose(fptr);
@@ -295,7 +296,7 @@ esp_err_t ibd_init() {
 		fptr = fopen(FILE_DB_BIN, "rb");
 		if ( !fptr ) {
 			ESP_LOGI(__func__,"Empty database");
-			return ESP_OK;	// TODO Jelezni?
+			return ESP_OK;
 		}
 		fclose(fptr);
 		return ESP_OK;
@@ -466,14 +467,21 @@ static FILE *select_file_to_write() {
  * */
 esp_err_t ibd_append_from_str(char *csv, size_t *bytes_left) {
 	FILE *fptr;
+	uint32_t bytes_processed;
+
 	if ( !(fptr = select_file_to_write()) ) {
 		ESP_LOGE(__func__,"File cannot be opened!");
 		return IBD_ERR_NOT_FOUND;
 	}
 	if ( !csv )
 		return IBD_ERR_INVALID_PARAM;
+	bytes_processed = process_csv(csv, *bytes_left, fptr);
+	(*bytes_left) -= bytes_processed;
 
-	(*bytes_left) -= process_csv(csv, *bytes_left, fptr);
+	ib_log_t msg = { .log_type = IB_LOG_DATAB,
+				     .value = bytes_processed };
+	ib_log_post(&msg);
+
 	fclose(fptr);
 	if ( *bytes_left ) {
 		return IBD_ERR_DATA;
@@ -499,13 +507,14 @@ char *str_chomp(char *buf) {
  *  \param fcsv csv file pointer
  * 		   fbin bin file pointer
  * 		   uint32_t linecnt line counter this holds when the processing stipped
- * 	\return IBD_OK *linecnt lines are successully saved.
- * 	\return IBD_ERR_NO_MEM runned out of memory
+ * 	\return 0 Successfully processed.
+ * 	\return 1 Fatal error at this line.
  * */
-static esp_err_t process_csv_to_bin(FILE *fcsv, FILE *fbin, uint32_t *linecnt) {
+static int process_csv_to_bin(FILE *fcsv, FILE *fbin, uint32_t *lines_proc) {
 	char *linebuf = malloc(IBD_CSV_LINE_MAX_SIZE);
 	size_t linesize = IBD_CSV_LINE_MAX_SIZE;
-	*linecnt = 0;
+	uint32_t linecnt = 1;
+	*lines_proc = 0;
 	ib_data_t *data;
 	size_t freebytes = IBD_FILE_SIZE - get_file_size(fbin);
 	uint32_t cnt;
@@ -514,32 +523,33 @@ static esp_err_t process_csv_to_bin(FILE *fcsv, FILE *fbin, uint32_t *linecnt) {
 		if ( cnt > 0) {
 			fseek(fbin,0L,SEEK_CUR);
 			if ( ( data = csv_process_line(str_chomp(linebuf)) ) ) {// Process ok // @suppress("Assignment in condition")
-	#ifdef TEST_MODE
+#ifdef TEST_MODE
 				ESP_LOGD(__func__,"ib_data_t s:\n code[%lld]\n mems[%i]\n",data->code_s.code, data->code_s.mem_d_size);
 				if ( data->crons ) {
 					ESP_LOGD(__func__," crons:[%s]\n",data->crons);
 				}
-	#endif
+#endif
 				if ( freebytes < data->code_s.mem_d_size ) {// Check the free space
-					ESP_LOGW(__func__,"Run out of memory at line:[%i]",*linecnt);
+					ESP_LOGW(__func__,"Run out of memory at line:[%i]",linecnt);
 					free(linebuf);
-					return IBD_ERR_NO_MEM;
+					return linecnt;
 				}
 
 				if ( 1 == fwrite(&(data->code_s), data->code_s.mem_d_size, 1, fbin) ){// Is object saved?
 					freebytes -= data->code_s.mem_d_size;
 				} else {
-					ESP_LOGE(__func__,"Cannot save processed data at line:[%i]", *linecnt);
+					ESP_LOGE(__func__,"Cannot save processed data at line:[%i]", linecnt);
 					if ( feof(fbin) ) {
 						ESP_LOGW(__func__,"EOF");
 					} else if ( ferror(fbin) ) {
 						ESP_LOGE(__func__,"FERROR");
 					}
 				}
+				(*lines_proc)++;
 			} else {// Process not ok
-				ESP_LOGW(__func__,"Cannot process line at:[%i]",*linecnt);
+				ESP_LOGW(__func__,"Cannot process line at:[%i]",linecnt);
 			}
-			(*linecnt)++;
+			linecnt++;
 			free(data);
 		}
 	}//EOF
@@ -580,8 +590,12 @@ esp_err_t ibd_make_bin_database() {
 	ret = process_csv_to_bin(fptr_csv, fptr_bin, &line);
 	fclose(fptr_bin);
 	fclose(fptr_csv);
+
+	ib_log_t msg = { .log_type = IB_LOG_DATAB, .value = line };
+	ib_log_post(&msg);
+
 	if ( ret ) {
-		ESP_LOGE(__func__,"Errcode:%x\nFile processing stopped at line:[%i]",ret, line);
+		ESP_LOGE(__func__,"File processing stopped at line:[%i]",ret);
 		return IBD_ERR_DATA;
 	}
 	activate_database();

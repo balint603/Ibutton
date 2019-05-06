@@ -20,12 +20,12 @@
 
 //#define TEST_MODE
 
-#define CODE_FAMILY_MASK 	0x00000000000000FF
-#define CODE_FAMILY 	 	0x0000000000000001
+#define CODE_MIN_VAL 	 	0x0100000000000000
+#define CODE_MAX_VAL 	 	0x0200000000000000
 #define CRON_MINIMUM_LEN 	9
 #define CRON_MAXIMUM_SIZE	(IBD_CRON_MAX_SIZE)
 
-
+#define STRICT
 
 
 /** \brief String check algorithm.
@@ -75,7 +75,7 @@ static int copy_cron(char *crons, int size, char *from){
 
 /** \brief Convert a string line to ib_data_t object.
  *	Allocated memory!
- *	\ret NULL if the ib_data_t object cannot be created from the line
+ *	\ret NULL if the ib_data_t object cannot be created from the line, (invalid cron length or code)
  *	\ret Pointer to a created ib_data_t object
  * */
 ib_data_t *csv_process_line(char *line){
@@ -107,7 +107,7 @@ ib_data_t *csv_process_line(char *line){
 
 	code_temp = strtoull(num_str, NULL, 16);
 #ifdef STRICT
-	if ( ! ((code_temp & CODE_FAMILY_MASK) == CODE_FAMILY) )	// TODO CHECK THIS BUGce
+	if ( CODE_MAX_VAL <= code_temp || code_temp <= CODE_MIN_VAL)
 		return NULL;
 #endif
 #ifdef TEST_MODE
@@ -120,8 +120,8 @@ ib_data_t *csv_process_line(char *line){
     if ( cron_len_temp >= CRON_MINIMUM_LEN ) {
     	ib_d = create_ib_data(code_temp, cron_temp);
     }
-    else {
-    	ib_d = create_ib_data(code_temp, NULL);
+    else {	// Cron too short
+    	return NULL;
     }
 	return ib_d;
 }

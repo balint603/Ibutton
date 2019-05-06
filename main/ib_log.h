@@ -13,9 +13,8 @@
 #include "cJSON.h"
 
 typedef struct ib_log {
-	uint64_t code;
+	uint64_t value;
 	const char *log_type;
-	struct tm timestamp;
 } ib_log_t;
 
 /** LOGTYPES */
@@ -24,6 +23,7 @@ typedef struct ib_log {
 #define IB_LOG_LOG_FILE_FULL	 		"FF"
 #define IB_LOG_KEY_OUT_OF_DOMAIN 		"OD"
 #define IB_SYSTEM_UP			 		"UP"
+#define IB_LOG_DATAB 			 		"DOWN"
 
 #define IB_LOG_ERR_CONNECTION_LOST 100
 #define IB_LOG_ERR_CONNECTION_OK   200
