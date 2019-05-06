@@ -332,6 +332,8 @@ static void key_touched_event(uint64_t code){
 static void ib_reader_task(void *pvParam){
 
 	g_handlers.fsm_state = st_check_touch;
+	LED_RED(ON);
+	LED_GREEN(OFF);
 
 	TimerHandle_t reader_tim = xTimerCreate("reader timer",
 			READER_DISABLE_TICKS, pdFALSE, 0, reader_enable_callback);
@@ -342,8 +344,6 @@ static void ib_reader_task(void *pvParam){
 	inputs_t input_incoming;
 	int button_prev_state = 0;
 
-
-	LED_RED(OFF);
 	vTaskDelay(100 / portTICK_PERIOD_MS); 		// Button capacitance!
 	while(1){
 		if( !gpio_get_level(PIN_BUTTON)){
@@ -515,12 +515,13 @@ void ib_need_su_touch() {
 	RELAY_CLOSE;
 	LED_GREEN(ON);
 	LED_RED(ON);
+	send_info(blink_both);
 	switch_state_to(st_wait_for_clear_log, portMAX_DELAY);
 }
 
 void ib_not_need_su_touch() {
-	LED_GREEN(ON);
-	LED_RED(OFF);
+	LED_GREEN(OFF);
+	LED_RED(ON);
 	switch_state_to(st_check_touch, portMAX_DELAY);
 }
 
@@ -529,16 +530,17 @@ void ib_not_need_su_touch() {
 static void st_wait_for_clear_log(inputs_t input) {
 	switch (input) {
 		case input_su_touched:
-			LED_GREEN(ON);
-			LED_RED(OFF);
+			LED_GREEN(OFF);
+			LED_RED(ON);
 			switch_state_to(st_check_touch, MUT_WAIT);
 			ibd_log_delete();
 			break;
 		case input_button:
-			LED_GREEN(OFF);
 			RELAY_OPEN;
 			timeout_set(g_config.openingtime);
-			switch_state_to(st_access_allow, MUT_WAIT);
+			break;
+		case input_tout:
+			RELAY_CLOSE;
 			break;
 		default:
 			break;
@@ -548,7 +550,8 @@ static void st_wait_for_clear_log(inputs_t input) {
 static void st_access_allow(inputs_t input) {
 	switch (input) {
 		case input_tout:
-			LED_GREEN(ON);
+			LED_GREEN(OFF);
+			LED_RED(ON);
 			RELAY_CLOSE;
 			infos_t info = blink_none;
 			send_info(info);
@@ -562,7 +565,8 @@ static void st_access_allow(inputs_t input) {
 static void st_acces_allow_bistable(inputs_t input) {
 	switch(input) {
 		case input_touched:
-			LED_GREEN(ON);
+			LED_GREEN(OFF);
+			LED_RED(ON);
 			RELAY_CLOSE;
 			infos_t info = blink_none;
 			send_info(info);
@@ -577,7 +581,8 @@ static void st_acces_allow_bistable_same_key(inputs_t input) {
 	switch(input) {
 		case input_touched:
 			if ( g_accessed_key == g_accessed_key_prev ) {
-				LED_GREEN(ON);
+				LED_GREEN(OFF);
+				LED_RED(ON);
 				RELAY_CLOSE;
 				infos_t info = blink_none;
 				send_info(info);
@@ -615,7 +620,8 @@ static void st_check_touch(inputs_t input) {
 			}
 			/* no break */
 		case input_touched:
-			LED_GREEN(OFF);
+			LED_RED(OFF);
+			LED_GREEN(ON);
 			RELAY_OPEN;
 			switch (g_config.mode) {
 				case IB_READER_MODE_BISTABLE:
@@ -633,18 +639,21 @@ static void st_check_touch(inputs_t input) {
 			ESP_LOGD(TAG,"Touched");
 			break;
 		case input_invalid_touched:
-			LED_RED(ON);
+			LED_RED(OFF);
 			LED_GREEN(OFF);
 			vTaskDelay(1000 / portTICK_PERIOD_MS);
-			LED_RED(OFF);
-			LED_GREEN(ON);
+			LED_RED(ON);
+			LED_GREEN(OFF);
 			ESP_LOGD(TAG,"Invalid touched");
 			break;
 		case input_button:
-			LED_GREEN(OFF);
-			RELAY_OPEN;
-			timeout_set(g_config.openingtime);
-			switch_state_to(st_access_allow, MUT_WAIT);
+			if ( g_config.mode == IB_READER_MODE_NORMAL ) {
+				LED_RED(OFF);
+				LED_GREEN(ON);
+				RELAY_OPEN;
+				timeout_set(g_config.openingtime);
+				switch_state_to(st_access_allow, MUT_WAIT);
+			}
 			break;
 		default:
 			break;
