@@ -41,7 +41,9 @@ const char *FILE_DB_TEMP =	 	  	"/spiffs/ibd/ibd_temp.bin";
 #define READ_CSV_PARAM  			"r"
 
 
-/** ret 0 no info file */
+/** \brief Get the checksums data from file.
+ *  \return 0 when file cannot open.
+ *  \return 1 when d is set. */
 int ibd_get_checksum(info_t *d) {
 	FILE *fptr = fopen(FILE_INFO,"rb");
 	if ( !fptr )
@@ -51,7 +53,10 @@ int ibd_get_checksum(info_t *d) {
 	return 1;
 }
 
-/** \ret 1 fwrite error or fopen return null */
+/** \brief Save the checksum to file.
+ *  \return 0 when successfully saved.
+ *  \return 1 when any errors occured.
+*/
 int ibd_save_checksum(info_t *d) {
 	FILE *fptr = NULL;
 	remove(FILE_INFO);
@@ -67,7 +72,7 @@ int ibd_save_checksum(info_t *d) {
 	fclose(fptr);
 	return 0;
 }
-
+/** \brief Returns the file size. */
 size_t get_file_size(FILE *fptr) {
 	uint32_t free;
 	fseek(fptr, 0L, SEEK_END);
@@ -76,9 +81,7 @@ size_t get_file_size(FILE *fptr) {
 	return free;
 }
 
-/** \brief Delete the log file from flash.
- *
- * */
+/** \brief Delete the log file from flash. */
 void ibd_log_delete() {
 	struct stat st;
 	if ( !stat(FILE_LOG, &st) ) {
@@ -87,9 +90,9 @@ void ibd_log_delete() {
 	return;
 }
 
-/** \ret 1 Exists
- *  	 0 Does not exist
- * */
+/** \return 1 Exists
+ *  \return 0 Does not exist
+ */
 int ibd_log_check_file_exist() {
 	struct stat st;
 	if ( !stat(FILE_LOG, &st) ) {
@@ -99,7 +102,18 @@ int ibd_log_check_file_exist() {
 }
 
 /** \brief Saves log data.
- *  \ret Written characters.
+ * Writes the logging data to flash and indicate if the file is
+ * greater than a critical size. \link IBD_LOG_FILE_CRITICAL Defined here. \endlink \n
+ * If the file is greater than the critical size, and there is enough space
+ * data will be saved, but return is \link IBD_ERR_CRITICAL_SIZE an error code. \endlink
+ *  \param data will be saved into log file.
+ *  \param data_length will be not changed if no error occurs,
+ *  else it holds the number of written characters.
+ *  \return \link IBD_ERR_INVALID_PARAM \endlink
+ *  \return \link IBD_ERR_FILE_OPEN \endlink
+ *  \return \link IBD_ERR_CRITICAL_SIZE \endlink
+ *  \return \link IBD_ERR_NO_MEM \endlink
+ *  \return \link IBD_ERR_WRITE \endlink
  * */
 esp_err_t ibd_log_append_file(char *data, size_t *data_length) {
 	FILE *fptr;

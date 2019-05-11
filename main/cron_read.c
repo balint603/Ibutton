@@ -1,6 +1,7 @@
-/*
- * Cron parser.
- */
+/**
+ * \addtogroup Cron_module
+ * @{
+ * */
 #include <stdio.h>
 #include <pwd.h>
 #include <ctype.h>
@@ -21,7 +22,7 @@
 
 typedef void (*ef)(Evmask*,int);
 
-/* a constraint defines part of a time spec.
+/** A constraint defines part of a time spec.
  * min & max are the smallest and largest possible values,
  * units is a string describing what the constraint is,
  * setter is a function that sets the time spec.
@@ -86,7 +87,7 @@ constrain(int num, constraint *limit)
 static int logicalline;
 
 
-/* Pick a number off the front of a string, validate it,
+/** Pick a number off the front of a string, validate it,
  * and repoint the string to after the number.
  */
 static int
@@ -110,7 +111,7 @@ number(char **s, constraint *limit)
 }
 
 
-/* Assign a value to an Evmask.
+/** Assign a value to an Evmask.
  */
 static void
 assign(int time, Evmask *mask, ef setter)
@@ -119,7 +120,7 @@ assign(int time, Evmask *mask, ef setter)
 }
 
 
-/* \brief Parsing the cron string to a time mask
+/** \brief Parsing the cron string to a time mask
  * Pick a time field off a line, returning a pointer to
  * the rest of the line.
  */
@@ -173,11 +174,11 @@ parse(char *s, Evmask *time_mask, constraint *limit)
 }
 
 
-/* \brief Create a mask type data from cron string.
+/** \brief Create a mask type data from cron string.
  * Read the entire time spec off the start of a line.
  * \param cron_s cron string
  * \param time_mask result output data
- * \ret either null (an error) or a pointer to
+ * \return either null (an error) or a pointer to
  * the rest of the line.
  */
 char *
@@ -193,7 +194,7 @@ getdatespec(char *cron_s, Evmask *time_mask)
 }
 
 
-/* \brief Convert a time <time.h> into an event mask.
+/** \brief Convert a time <time.h> into an event mask.
  * \param tm will be converted to time.
  * \param time output of the conversion
  */
@@ -238,8 +239,8 @@ split_crons(char *crons_s, size_t *length){
 /** \brief Check all crons.
  *  \param crons_s Cron strings with separators.
  *    - 'OR' operation between cron strings.
- *  \ret 0 out of domains
- *  \ret 1 in a domain
+ *  \return 0 out of domains
+ *  \return 1 in a domain
  * */
 int
 checkcrons(char *crons_s, struct tm *time)
@@ -277,14 +278,7 @@ checkcrons(char *crons_s, struct tm *time)
 	return 0;	// Not found a domain fitted in
 }
 
-
-
-
-
-
-
-
-
+/** @} */
 
 
 

@@ -1,4 +1,5 @@
-/*
+/** @defgroup ib_database
+ * @{
  * ib_database.h
  *
  *  Created on: Mar 25, 2019
@@ -31,34 +32,38 @@
  * 	- not case sensitive
  * 	- begin with or without: "0x" "0X" accepted
  * 	- extra spaces are allowed only the start or end of the string.
+ *
  * Field: Crons:
- *  - crons are separated by ";" or choose a character which is not included in crons.
+ *  - crons are separated by ";" or choose a character which is not included in crons.\n
  *
- * Examples:
- * "8899aabbccddeeff|* 6-16 * * 1-5;* 9-13 * * 1,7\n"
- * "8899AABBCCDDEEFF|* 6-16 * * 1-5;* 9-13 * * 1,7\r\n"
+ * Examples:\n
+ * \code
+ * "8899aabbccddeeff|* 6-16 * * 1-5;* 9-13 * * 1,7\n"\n
+ * "8899AABBCCDDEEFF|* 6-16 * * 1-5;* 9-13 * * 1,7\r\n"\n
  * "0x_8899AABBCCDDEEFF_|_* 6-16 * * 1-5_;_* 9-13 * * 1,7_\r"     -> "_"shows all possible place of extra spaces.
+ * \endcode
  *
  *
+ * A binary entry in file looks like:
+ * \code
+ * Prev. |____ ________________ _____________       ___| Next data.
+ *       |    |                |                       |
+ *       |    |      code [8B] |cron[0-256]B  o o o    |
+ *       |____|________________|_____________       ___|
+ *         ^              ^            ^
+ *         |              |            |
+ *     mem_d_size [2B]    |            |
+ *                        |            |
+ *     code_______________|            |
+ *     -iButton serial number          |
+ *                                     |
+ *     cron string format______________|
+ * 	   - ';' seperated list
+ * 	   - example string: "* 7-17 * * 1-5;* 12-20 * * 0,6"
+ * 	   - 'or' relation between crons
+ * 	   - includes null terminator
+ * \endcode
  *
- * A binary entry in file: ( or ib_code_t objec)
- *
- * Prev.|____ ________________ _____________       ___| Next data
- * 		|    |                |                       |
- * 		|    |      code [8B] |cron[0-256]B  o o o    |
- * 		|____|________________|_____________       ___|
- *        ^              ^            ^
- 	 	  |				 |			  |
- *    mem_d_size [2B]	 |			  |
- * 	                     |            |
- * 	  code_______________|            |
- * 	  -iButton serial number          |
- * 	  								  |
- * 	  cron string format______________|
- * 	  - ';' seperated list
- * 	  - example string: "* 7-17 * * 1-5;* 12-20 * * 0,6"
- * 	  - 'or' relation between crons
- * 	  - includes null terminator
  */
 
 #ifndef MAIN_IB_DATABASE_H_
@@ -66,33 +71,54 @@
 
 #include "esp_err.h"
 
-/** File informations */
-#define IBD_PARTITION_LABEL 	NULL 			// NULL: basic spiffs name will be searched.
-#define IBD_FILE_SIZE 			(256 * 1024)	// temporary and active files size
-#define IBD_CSV_FILE_SIZE		(512 * 1024)	// csv file size
-#define IBD_LOG_FILE_SIZE		(512 * 1024)	// Log file size
-#define IBD_LOG_FILE_CRITICAL	(500 * 1024 )	// Log file critical size
+/** @defgroup file_macros Macros file size
+ * @{
+ * File informations */
+/** \brief NULL: basic spiffs name will be searched. */
+#define IBD_PARTITION_LABEL 	NULL
+/** \brief Temporary and active files size. */
+#define IBD_FILE_SIZE 			(256 * 1024)
+/** \brief DSV file size. */
+#define IBD_CSV_FILE_SIZE		(512 * 1024)
+/** \brief Log file size. */
+#define IBD_LOG_FILE_SIZE		(512 * 1024)
+/** \brief Log file critical size. File cannot be greater. */
+#define IBD_LOG_FILE_CRITICAL	(500 * 1024 )
+/** @} */
 
-/** CSV file informations */
-#define IBD_CRON_MAX_SIZE 		256				// Max cron size
-#define IBD_CSV_CODE_SIZE 		16				// Min Size of iButton code in file csv
-#define IBD_CSV_FIELDS 			2				// Number of fields in csv
+/** @defgroup dsv_file_macros Macros file DSV
+ * \brief DSV file informations.
+ * @{ */
+/** \brief Crons max length. */
+#define IBD_CRON_MAX_SIZE 		256
+#define IBD_CSV_CODE_SIZE 		16
+/** \brief First filed is key code the second is the crons string. */
+#define IBD_CSV_FIELDS 			2
 #define IBD_CSV_LINE_MAX_SIZE 		(IBD_CRON_MAX_SIZE + IBD_CSV_CODE_SIZE + 1)
 
+/** \brief Separator between code and cron strings */
 #define DELIMITER 				"|"
+/** \brief Separate the crons. */
 #define CRON_DELIMITER 			';'
 #define CSV_DELIMITER_LENGTH 	 1
+/** @} */
 
-
-/** Binary file informations */
+/** @defgroup bin_file_macros Macros binary file
+ * \brief Binary file informations
+ * @{
+ * */
 #define IBD_CODE_SIZE			(sizeof(uint64_t))
 #define IBD_CRONS_L_SIZE		(sizeof(uint16_t))
 #define IBD_MIN_SIZE			(IBD_CODE_SIZE + IBD_CRONS_L_SIZE + sizeof(char*))
 #define IBD_MIN_MEM_SIZE		(IBD_CODE_SIZE + IBD_CRONS_L_SIZE)
 
 #define IB_C_MIN_SIZE			(IBD_CODE_SIZE + IBD_CRONS_L_SIZE)
+/** @} */
 
-/** ERROR CODES  */
+/** @defgroup err_codes_macro Error codes
+ * \brief Error codes.
+ * 	@{
+ * */
 #define IBD_OK					(0)
 #define IBD_FOUND				(IBD_OK)
 #define IBD_ERR_BASE			(0x666)
@@ -104,40 +130,45 @@
 #define IBD_ERR_NO_MEM   		(IBD_ERR_BASE + 0x06)
 #define IBD_ERR_WRITE   		(IBD_ERR_BASE + 0x07)
 #define IBD_ERR_CRITICAL_SIZE	(IBD_ERR_BASE + 0x08)
-
+/** @} */
 
 /** LOGFILE path */
 #define FILE_LOG 	 				"/spiffs/ibd/ibutton.log"
 
 
-/** \brief Part of the ib_data_t structure.
- *  \var mem_d_size size of the code and crons string
- *  \var code iButton code.
- *  */
-typedef struct __attribute__((__packed__)) ib_code{
+/** @defgroup data_structures Data types
+ * @{
+ *  \brief Part of the ib_data_t structure.
+ *  mem_d_size size of the code and crons string
+ *  code iButton code.
+ */
+typedef struct __attribute__ ((__packed__)) ib_code{
 	uint16_t mem_d_size;
 	uint64_t code;
 } ib_code_t;
 
-/** \brief IButton data object.
- *  \var crons pointer to crons.
- *  \var code_s code part.
- * */
-typedef struct __attribute__((__packed__)) ib_data{
+/**
+ *  \brief IButton data object.
+ *  Must attribute "packed" is used to prevent optimization, because
+ *  the size of this object must be known.
+ */
+typedef struct __attribute__ ((__packed__)) ib_data{
 	char *crons;
 	ib_code_t code_s;
 	// CRON STRING space
+
 } ib_data_t;
 
 /** \brief Information of the database state.
- * */
+ *  These checksum values are used to determine whether the database need to refresh or not.
+ */
 typedef struct __attribute__((__packed__)) info_data{
-	uint64_t checksum_cur;		// Current "running" database
-	uint64_t checksum_temp;		// Temporary binary database checksum (Needed while processing csv file)
-	uint64_t checksum_csv;		// Downloaded csv file checksum.
+	uint64_t checksum_cur;		/** Current "running" database */
+	uint64_t checksum_temp;		/** Temporary binary database checksum (Needed while processing csv file) */
+	uint64_t checksum_csv;		/** Downloaded csv file checksum. */
 } info_t;
+/** @} */
 
-/** Get or change the current checksums  */
 int ibd_get_checksum(info_t *d);
 int ibd_save_checksum(info_t *d);
 
@@ -183,3 +214,4 @@ void test_process_line();
 void test_process_csv();
 #endif
 #endif /* MAIN_IB_DATABASE_H_ */
+/** @} */

@@ -11,7 +11,6 @@
 #include "console.h"
 #include "ib_sntp.h"
 #include "ib_reader.h"
-#include "mqtt_app.h"
 #include "ib_database.h"
 #include "esp_spiffs.h"
 #include "ib_http_client.h"
