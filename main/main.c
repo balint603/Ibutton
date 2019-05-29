@@ -1,3 +1,24 @@
+/** \mainpage iButton Access Control project
+ *
+ *  \section intro_sec About this project
+ *  This software is developed to run on ESP32 (Espressif) device. \n
+ *  The task of this project is to create an online access control device.
+ *  The authentication is realized with iButton (Maxim Integrated) keys and can be restrict in time.
+ *  It means that the device only allows access when the given person's key can be found in the local database
+ *  and the time restriction setting - belongs to each person - matches the current time.
+ *  \n\n
+ *  Time descriptor are based on (UNIX) crontab and used to store time settings related to each keys.
+ *  This device works with a local database stored in flash memory. It consists of key-cron entries.
+ *  \section sw_modules Software modules
+ *  This software consists of the following main modules:
+ *   - ib_database module: \n
+ *
+ *   - cron module:
+ *   - ib_http_client module:
+ *   - ib_log module:
+ *   - ibutton module:
+ * */
+
 #include <stdio.h>
 #include "esp_system.h"
 #include "esp_log.h"

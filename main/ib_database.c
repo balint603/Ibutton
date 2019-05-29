@@ -145,13 +145,14 @@ esp_err_t ibd_log_append_file(char *data, size_t *data_length) {
 }
 
 /** \brief Saves data to FILE_CSV
+ *
  *  If checksum param and the current saved csv checksum does not match, current data will be lost.
- *  \param data data to be saved in csv file
- *  	   data_length length of data in bytes
- *  	   checksum database sum
- *  \ret IBD_ERR_FILE_OPEN
- *  	 IBD_ERR_NO_MEM
- *  	 IBD_OK
+ *  \param data to be saved in csv file
+ *  \param data_length length of data in bytes
+ *  \param checksum database checksum value
+ *  \return IBD_ERR_FILE_OPEN
+ *  \return IBD_ERR_NO_MEM
+ *  \return IBD_OK
  * */
 esp_err_t ibd_append_csv_file(char *data, int *data_length, uint64_t checksum) {
 	FILE *fptr;
@@ -213,6 +214,10 @@ static void activate_database() {
 }
 
 /** \brief Creates an ib_data_t object.
+ * \param code iButton serial code
+ * \param crons cron strings
+ * \return NULL object cannot be created.
+ * \return ib_data_t pointer when space for object was allocated.
  * Allocated memory space!
  * */
 ib_data_t *create_ib_data(uint64_t code, char *crons) {
@@ -228,6 +233,9 @@ ib_data_t *create_ib_data(uint64_t code, char *crons) {
 	ret_data = malloc(cron_size + sizeof(ib_data_t));
 	ret_data->code_s.code = code;
 	ret_data->code_s.mem_d_size = mem_d_size;
+	if ( !ret_data ) {
+		return NULL;
+	}
 	if ( cron_size ) {
 		ret_data->crons =  (size_t*)( (size_t)&(ret_data->code_s) + (size_t)sizeof(ib_code_t));
 		strcpy(ret_data->crons, crons);
@@ -238,8 +246,8 @@ ib_data_t *create_ib_data(uint64_t code, char *crons) {
 }
 
 /** \brief Check log file fit in flash.
- * 	\ret 0 Enough memory.
- * 	\ret 1 Not enough memory.
+ * 	\return 0 Enough memory.
+ * 	\return 1 Not enough memory.
  *  */
 int ibd_log_check_mem_enough() {
 	size_t fsize = 0, free_bytes, total_bytes, used_bytes;
@@ -256,10 +264,11 @@ int ibd_log_check_mem_enough() {
 	return 0;
 }
 
-/** \brief Check the SPIFFS partition and delete active file when found space is not enough. Used when initialization.
+/** \brief Check the SPIFFS partition and delete active file when found space is not enough.
+ * Used when initialization.
  * Removes active database file when the memory is not big enough to hold an another file.
- * \ret 1 there is enough free space to update database.
- * \ret 0 not enough space.
+ * \return 1 there is enough free space to update database.
+ * \return 0 not enough space.
  *  */
 static int is_place_enough() {
 	size_t fsize = 0;
@@ -289,10 +298,11 @@ static int is_place_enough() {
 	return 1;
 }
 
-/** \brief Initialize.
- *  \ret ESP_ERR_NOT_FOUND the ESP spiffs component is not mounted
- *	\ret ESP_ERR_NNO_MEM not enough place for file with defined size
- *	\ret ESP_OK database is ready for read / write operations
+/** \brief Initialize this module.
+ *  Must be called only once.
+ *  \return ESP_ERR_NOT_FOUND the ESP spiffs component is not mounted
+ *	\return ESP_ERR_NNO_MEM not enough place for file with defined size
+ *	\return ESP_OK database is ready for read / write operations
  * */
 esp_err_t ibd_init() {
 	FILE *fptr;
@@ -319,11 +329,11 @@ esp_err_t ibd_init() {
 }
 /** \brief Get a ib_data_t from file with specified code value.
  * \param code_val search by this value
- * \param d_ptr
- * \ret IBD_FOUND ib_data_t found, d_ptr points to it
- * \ret IBD_ERR_FILE_OPEN
- * \ret IBD_ERR_DATA
- * \ret IBD_ERR_READ
+ * \param d_ptr will be point to an allocated object, when data can be found
+ * \return IBD_FOUND ib_data_t found, d_ptr is not NULL else it is
+ * \return IBD_ERR_FILE_OPEN
+ * \return IBD_ERR_DATA data object cannot be created
+ * \return IBD_ERR_READ read from file error
  * */
 esp_err_t ibd_get_by_code(uint64_t code_val, ib_data_t **d_ptr) {
 	FILE *fptr = fopen(FILE_DB_BIN, READ_PARAM);
@@ -378,7 +388,11 @@ esp_err_t ibd_get_by_code(uint64_t code_val, ib_data_t **d_ptr) {
 }
 
 /** \brief Create an ib_data_t object and save it to the flash.
- *  \ret The number of processed bytes from buffer csv.
+ * Process from buffer.
+ *  \param csv buffer
+ *  \param size
+ *  \param fptr
+ *  \return The number of processed bytes from buffer csv.
  * */
 static int process_csv(char *csv, size_t size, FILE *fptr) {
 	char line[IBD_CSV_LINE_MAX_SIZE];
@@ -470,14 +484,15 @@ static FILE *select_file_to_write() {
 
 /** \brief Process and save the csv data into binary file.
  * Current file (FILE_DB_BIN or FILE_DB_TEMP) will be overwritten
- *  when info_t data .new_checksum (set by save_checksum function) is not equals with .active_checksum or .inactive_checksum.
+ *  when info_t data .new_checksum (set by save_checksum function)
+ *  is not equals with .active_checksum or .inactive_checksum.
  *  \param new_checksum
- *         csv
- *     	   data_len maximum bytes to process from file
- *  \ret IBD_OK all bytes all written successfully
- *       IBD_ERR_DATA when the remaining bytes cannot be saved
- *       ESP_ERR_NOT_FOUND fopen error
- *       ESP_ERR_INVALID ARG csv is null
+ *  \param csv
+ *  \param data_len maximum bytes to process from file
+ *  \return IBD_OK all bytes all written successfully
+ *  \return IBD_ERR_DATA when the remaining bytes cannot be saved
+ *  \return ESP_ERR_NOT_FOUND fopen error
+ *  \return ESP_ERR_INVALID ARG csv is null
  * */
 esp_err_t ibd_append_from_str(char *csv, size_t *bytes_left) {
 	FILE *fptr;
@@ -519,8 +534,8 @@ char *str_chomp(char *buf) {
 
 /** \brief csv to binary file processing.
  *  \param fcsv csv file pointer
- * 		   fbin bin file pointer
- * 		   uint32_t linecnt line counter this holds when the processing stipped
+ * 	\param fbin bin file pointer
+ * 	\param linecnt line counter this holds when the processing stipped
  * 	\return 0 Successfully processed.
  * 	\return 1 Fatal error at this line.
  * */
@@ -576,10 +591,10 @@ static int process_csv_to_bin(FILE *fcsv, FILE *fbin, uint32_t *lines_proc) {
 
 /** \brief Make a binary database from csv file.
  *  \return IBD_OK when file successfully loaded.
- *  		IBD_ERR_FILE_OPEN when destination binary file cannot be opened
- *  		IBD_ERR_INVALID_PARAM when the FILE_PATH null
- *  		IBD_ERR_NOT_FOUND when FILE_PATH file cannot be opened
- *  		IBD_ERR_DATA file processing stopped
+ *  \return	IBD_ERR_FILE_OPEN when destination binary file cannot be opened
+ *  \return	IBD_ERR_INVALID_PARAM when the FILE_PATH null
+ *  \return	IBD_ERR_NOT_FOUND when FILE_PATH file cannot be opened
+ *  \return	IBD_ERR_DATA file processing stopped
  * */
 esp_err_t ibd_make_bin_database() {
 	FILE *fptr_bin;

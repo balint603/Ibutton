@@ -1,8 +1,18 @@
-/*
+/**
  * ib_http_client.c
+ * \addtogroup ib_http_client
+ * @{
  *
  *  Created on: Apr 5, 2019
  *      Author: root
+ *
+ *  This module is created to allow HTTP communication with specified server.
+ *
+ *  The checksum from server is periodically downloaded and compared to the local one.
+ *  If the checksum does not match, the DSV file will be pulled down.
+ *  The URLS can be configured on console with a serial terminal.
+ *
+ *
  */
 
 #include "ib_http_client.h"
@@ -23,13 +33,22 @@
 #include "ib_database.h"
 #include "ib_reader.h"
 
-#define TESTMODE
+//#define TESTMODE
 
+#define TAG "iB_client"
+
+/** \brief HTTP stream buffer size. */
 #define HTTP_RECEIVE_BUFFER 	2048
+
+/** \brief GET request for checksum file buffer size. */
 #define HTTP_CHECKSUM_BUFFER 	512
+
+/** \brief POST data log message buffer. */
 #define HTTP_POST_FILE_BUFFER	4096
 
+/** \brief SPIFFS key. */
 const char key_server_info[] = "db_url";
+/** \brief SPIFFS namespace. */
 const char namespace[] = "wifi_nvs";
 
 const int HTTP_USERD_CHECKSUM = 55;
@@ -37,6 +56,7 @@ const int HTTP_USERD_CHECKSUM = 55;
 extern EventGroupHandle_t wifi_event_group;
 extern const int CONNECTED_BIT;
 
+/** \brief Server paths. */
 static struct {
 	struct arg_str *server_URL;
     struct arg_str *checksum_file_path;
@@ -46,6 +66,8 @@ static struct {
 } setserver_args;
 
 #define URL_MAXLEN 63
+
+/** \brief Server URLS. */
 typedef struct ib_server_conf {
 	char server_url[32];
 	char ch_url[URL_MAXLEN + 1];	// Checksum
@@ -53,19 +75,17 @@ typedef struct ib_server_conf {
 	char log_url[URL_MAXLEN + 2];	// Log
 } ib_server_conf_t;
 
-
-#define TAG "iB_client"
-
-#define BIT_START_UPDATING 		BIT0					// Event group bit
+/** \brief Event group bits. */
+#define BIT_START_UPDATING 		BIT0
 #define BIT_START_UPDATE_NOW 	BIT1
 
 EventGroupHandle_t g_client_event_group;
-TaskHandle_t g_update_handler;				// Task handler
+TaskHandle_t g_update_handler;
 
 ib_server_conf_t g_server_conf;
 
-esp_err_t _http_event_handler(esp_http_client_event_t *evt)
-{
+/** \brief Based on sample project. */
+esp_err_t http_event_handler(esp_http_client_event_t *evt) {
     switch(evt->event_id) {
         case HTTP_EVENT_ERROR:
             ESP_LOGD(TAG, "HTTP_EVENT_ERROR");
@@ -85,8 +105,9 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
 #ifdef TESTMODE
             	if ( evt->data_len && evt->data )
             		printf("HTTPS_EVENT_DATA[%.*s]", evt->data_len, (char*)evt->data);
-            }
+
 #endif
+            }
             break;
         case HTTP_EVENT_ON_FINISH:
             ESP_LOGD(TAG, "HTTP_EVENT_ON_FINISH");
@@ -98,10 +119,9 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
     return ESP_OK;
 }
 
-
-/** \brief Get and Set NVS data about server URL.
- *
- *  */
+/** \brief Refresh server configuration.
+ *  It copies the configuration data from NVS. Used after initialization.
+ */
 static esp_err_t refresh_server_conf() {
 	nvs_handle nvs;
 	esp_err_t ret;
@@ -127,10 +147,13 @@ char *ib_client_get_log_url() {
 	return g_server_conf.log_url;
 }
 
-/** \brief Download from server and write via spiffs.
- *  BUFFERSIZE < CSV?
- *  PROTOTYPE!!!
- * */
+/** \brief Download from server and write via SPIFFS.
+ * This function downloads the whole DSV file from server.
+ * File will be saved in the specified DSV file in file system.
+ * \return -1 Not enough memory
+ * \return 1 Any error occurred.
+ * \return ESP_OK when successfully download.
+ */
 esp_err_t save_csv_from_server(uint64_t checksum) {
 	char *buffer = malloc(HTTP_RECEIVE_BUFFER+1);
 	esp_err_t ret;
@@ -144,7 +167,7 @@ esp_err_t save_csv_from_server(uint64_t checksum) {
     esp_http_client_config_t config = {
         .url = g_server_conf.db_url,
 		.buffer_size = HTTP_RECEIVE_BUFFER + 1,
-		.event_handler = _http_event_handler
+		.event_handler = http_event_handler
     };
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if ( !client ) {
@@ -184,13 +207,15 @@ esp_err_t save_csv_from_server(uint64_t checksum) {
 
     ibd_make_bin_database();
     free(buffer);
-    return 1;
+    return ESP_OK;
 }
 
 /** \brief Get checksum value from server.
- *  \ret 0 Successfully downloaded.
- *  \ret -1 Malloc failed
- *  \ret 1 HTTP failure
+ *  Get the checksum file from server and copy to argument.
+ *  \param checksum value from server.
+ *  \return 0 Successfully downloaded.
+ *  \return -1 Malloc failed
+ *  \return 1 HTTP failure
  * */
 int get_checksum_from_server(uint64_t *checksum) {
 	char *buffer = malloc(HTTP_CHECKSUM_BUFFER+1);
@@ -206,7 +231,7 @@ int get_checksum_from_server(uint64_t *checksum) {
     esp_http_client_config_t config = {
         .url = g_server_conf.ch_url,
 		.buffer_size = HTTP_CHECKSUM_BUFFER + 1,
-		.event_handler = _http_event_handler
+		.event_handler = http_event_handler
     };
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if ( !client ) {
@@ -246,10 +271,12 @@ int get_checksum_from_server(uint64_t *checksum) {
     return 0;
 }
 
-/** \brief Post the file from flash
- * \ret ESP_ERR_NOT_FOUND File cannot be opened.
- *		ESP_ERR_HTTP_CONNECT HTTP connection failure.
- *		ESP_ERR_HTTP_WRITE_DATA When the whole file cannot be read or cannot write to http stream.
+/** \brief Post the logfile from flash.
+ *  This function uploads the logfile from local file. The logfile is deleted when HTTP request ends successful.
+ *
+ * \return ESP_ERR_NOT_FOUND File cannot be opened.
+ * \return ESP_ERR_HTTP_CONNECT HTTP connection failure.
+ * \return ESP_ERR_HTTP_WRITE_DATA When the whole file cannot be read or cannot write to http stream.
  */
 esp_err_t post_logfile() {
 	esp_err_t ret;
@@ -264,7 +291,7 @@ esp_err_t post_logfile() {
 	fsize = get_file_size(fptr);
 	esp_http_client_config_t config = {
 			.url = g_server_conf.log_url,
-			.event_handler = _http_event_handler
+			.event_handler = http_event_handler
 	};
 
 	esp_http_client_handle_t client = esp_http_client_init(&config);
@@ -310,7 +337,7 @@ esp_err_t post_logfile() {
 
 /** \brief Sync task.
  * Get the current database checksum and post the logfile if exist.
- * Task can be hold by
+ * Task can be hold by groupbit: BIT_START_UPDATING
  * */
 void update_from_server_task() {
 	uint64_t checksum_got;
@@ -325,9 +352,9 @@ void update_from_server_task() {
 			if ( checksum_got != checksums.checksum_cur ) {
 				ESP_LOGI(TAG, "Start downloading csv file");
 				if ( ESP_OK != save_csv_from_server(checksum_got) ) {
-
+					ESP_LOGI(TAG, "DSV file cannot be download.");
 				} else {
-					ESP_LOGI(TAG, "Succesfully downloaded");
+					ESP_LOGI(TAG, "Successful download.");
 				}
 			}
     	}
@@ -348,10 +375,11 @@ void update_from_server_task() {
 }
 
 /** \brief Send a specific cJSON message.
- * 	\ret 0 Successfully sent.
- * 		 1 HTTP error.
- * 		 2 JSON error.
- * 		-1 Param error.
+ * Post HTTP data to specified file path.
+ * 	\return 0 Successfully sent.
+ * 	\return 1 HTTP error.
+ *  \return 2 JSON error.
+ * 	\return -1 Argument null.
  * */
 int ib_client_send_logmsg(char *data, size_t length) {
 	if ( !data )
@@ -360,7 +388,7 @@ int ib_client_send_logmsg(char *data, size_t length) {
 	esp_err_t ret;
 	esp_http_client_config_t config = {
 			.url = g_server_conf.log_url,
-			.event_handler = _http_event_handler
+			.event_handler = http_event_handler
 	};
 
 	esp_http_client_handle_t client = esp_http_client_init(&config);
@@ -424,6 +452,7 @@ esp_err_t ib_client_init() {
 	return ESP_OK;
 }
 
+/** \brief Copy the parameters to NVS. */
 static int save_servers_conf(int argc, char *URL, char *ch_file, char *db_file, char *log_dir) {
 	if ( !ch_file || !db_file || !URL)
 		return 1;
@@ -479,6 +508,7 @@ static int save_servers_conf(int argc, char *URL, char *ch_file, char *db_file, 
 	return ret;
 }
 
+/** \brief Command callback function. */
 static int setserver_url(int argc, char** argv) {
 	if ( argc < 4 ) {
 		if ( argc <= 1)
@@ -500,6 +530,7 @@ static int setserver_url(int argc, char** argv) {
 	return save_servers_conf(argc, argv[1], argv[2], argv[3], argv[4]);
 }
 
+/** \brief Command register function. */
 void register_setserver() {
 	setserver_args.server_URL 		  = arg_str1(NULL, NULL, "<URL>", "URL of server");
 	setserver_args.checksum_file_path = arg_str1(NULL, NULL, "<File path>", "File path of checksum file");
@@ -517,7 +548,7 @@ void register_setserver() {
 }
 
 
-
+/** @} */
 
 
 
