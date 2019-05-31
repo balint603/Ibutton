@@ -1,7 +1,7 @@
 /** \mainpage iButton Access Control project
  *
  *  \section intro_sec About this project
- *  This software is developed to run on ESP32 (Espressif) device. \n
+ *  This software is developed on ESP32 (Espressif) device. \n
  *  The task of this project is to create an online access control device.
  *  The authentication is realized with iButton (Maxim Integrated) keys and can be restrict in time.
  *  It means that the device only allows access when the given person's key can be found in the local database
@@ -9,14 +9,41 @@
  *  \n\n
  *  Time descriptor are based on (UNIX) crontab and used to store time settings related to each keys.
  *  This device works with a local database stored in flash memory. It consists of key-cron entries.
+ *
+ *  Architecture: ESP32\n
+ *  Used framework: ESP-IDF V3.0
+ *
  *  \section sw_modules Software modules
  *  This software consists of the following main modules:
- *   - ib_database module: \n
- *
- *   - cron module:
- *   - ib_http_client module:
- *   - ib_log module:
  *   - ibutton module:
+ *   	- Read iButton device ROM data. This is used for the authentication.
+ *   - cron module:
+ *   	- Check the current time matches the cron strings which belongs to each iButton key.
+ *   	- Part of the UNIX-like crontab.
+ *   - console module:
+ *   	- Set initial settings like: SSID, password.
+ *   - ib_database module: \n
+ *   	- Responsible for storing data permanently.
+ *   	- Store local key database, logging file.
+ *   	- Uses SPIFFS component.
+ *   - ib_sntp module
+ *   	- Uses SNTP component.
+ *   - ib_http_client module:
+ *   	- Establish HTTPS communication between iButton reader device and server.
+ *   	- Uses ESP_HTTP_CLIENT component.
+ *   - ib_log module:
+ *   	- Defines a specific log type message.
+ *   	- Uses cJSON.
+ *   - ib_reader module
+ *   	- It is a finite state machine which performs basic access controlling tasks:
+ *   		- Open or close the output relay,
+ *   		- blink LEDs on the reader,
+ *   		- create different operationg modes.
+ *
+ * <i>See the further informations at the module documentations.</i>
+ *
+ *   \section main_modules Module connections
+ *   \image html Prog_MODULES.png
  * */
 
 #include <stdio.h>
