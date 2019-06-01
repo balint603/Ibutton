@@ -1,20 +1,29 @@
-/*
+/**
  * ib_reader.c
  *
  *  Created on: Feb 26, 2019
  *      Author: root
+ * @addtogroup ib_reader
+ * @{
+ * This module implements the access control functions like opening relay, blink the LEDs.
  *
- *  This module implements the access control functions.
+ *
  *  It is state a machine which has more inputs:
  *  	- iButton reader,
  *  	- button,
  *  	- timeouts.
+ *
+ *  Inputs are realized with FreeRTOS queue, and inputs_t.\n
  *  Two tasks:
  *  	1.: reads the button state, and read the iButton data.
  *  	2.: informs the user of the state machine, example: blink leds
  * 	Uses
  * 		- software timers to create timeouts,
- * 		- queues to perform communications between the input generators and the state machine,
+ * 		- queues to perform communications between the input generators and the state machine.
+ *
+ * 	<b> State diagram: </b>
+ * 	\htmlonly <style>div.image img[src="draws/FSM.png"]{width:10px;}</style> \endhtmlonly
+ *	@image html draws/FSM.png "Finite State Machine"
  */
 
 #include "ib_reader.h"
@@ -42,7 +51,9 @@
 const char READER_KEY_NVS[] = "reader_config";
 const char READER_NSPACE_NVS[] = "reader_ns";
 
-/** Input types of the state machine */
+/** \brief Input types of the state machine.
+ *  Only these types of input works.
+ * */
 typedef enum inputs {
     input_touched,
     input_su_touched,
@@ -51,7 +62,10 @@ typedef enum inputs {
 	input_tout,
 } inputs_t;
 
-/** Type of indicating the state of the machine */
+/** \brief Indicating the current state.
+ *  This enumeration data is used as an input to a queue which is used by LED blinker task.
+ *  Put any type of these in to queue to change color.
+ * */
 typedef enum infos {
 	blink_green,
 	blink_red,
@@ -60,16 +74,20 @@ typedef enum infos {
 	blink_none,
 } infos_t;
 
-/** Configuration settings */
+/** Configuration settings.
+ *  */
 typedef struct ib_conf{
+	/** Super user key code. */
 	uint64_t su_key;
+	/** Opening time interval when mode is 0. */
 	unsigned int openingtime;
+	/** Operational mode. */ // todo change to enumeration
 	unsigned int mode;
 	unsigned int buttonenable;
 	char devicename[128];
 } ib_conf_t;
 
-/** Holds the current state */
+/** Holds the current state of the FSM. */
 typedef void ( *p_state_handler )(inputs_t input);
 
 /** FreeRTOS handlers */
@@ -119,15 +137,14 @@ volatile BaseType_t g_enable_reader = pdTRUE;
 volatile uint64_t g_accessed_key_prev;
 volatile uint64_t g_accessed_key;
 
-/** called: state functions.
- *  This functions performs several operations,
- *  they are the states of the machine.
- *  */
+/** addtogroup state_functions
+ * @{ */
 static void st_check_touch();
 static void st_wait_for_clear_log();
 static void st_access_allow();
 static void st_su_mode();
 static void st_check_touch();
+/** @} */
 
 static void save_config();
 
@@ -158,6 +175,7 @@ static void refresh_config() {
 	save_config();
 }
 
+/** \brief Saves the current (ib_conf_t) configurations. */
 static void save_config() {
 	nvs_handle handler;
 	esp_err_t ret;
@@ -180,18 +198,22 @@ static void save_config() {
 	refresh_config();
 }
 
+/** \brief Change the device name. */
 void ib_set_device_name(const char *name){
 	strncpy(g_config.devicename, name, 127);
 	save_config();
 }
+/** \brief Change superuser key code. */
 void ib_set_su_key(uint64_t code){
 	g_config.su_key = code;
 	save_config();
 }
+/** \brief Opening time. */
 void ib_set_opening_time(uint32_t ms){
 	g_config.openingtime = ms;
 	save_config();
 }
+/** \brief Change operational mode. */
 void ib_set_mode(uint32_t mode){
 	if ( mode == IB_READER_MODE_NORMAL ||
 		 mode == IB_READER_MODE_BISTABLE ||
@@ -203,27 +225,26 @@ void ib_set_mode(uint32_t mode){
 	ESP_LOGE(TAG,"Invalid mode");
 }
 
-/**
- * timeout_tim software timer callback function.
+/** \brief timeout_tim software timer callback function.
+ *  Add a input_tout (timeout) to FSM's queue.
  * */
 static void timeout_callback(TimerHandle_t timer){
 	inputs_t input = input_tout;
 	xQueueOverwrite(g_handlers.input_q,&input);
 }
 
-/**
- * Called by the reader disable timer.
+/** \brief Called by the reader disable timer.
  * */
 static void reader_enable_callback(TimerHandle_t timer){
 	g_enable_reader = pdTRUE;
 }
 
+/** \brief Check su enable pin. */	// TODO not implemented.
 static int is_su_mode_enable(){
 	return gpio_get_level(PIN_SU_ENABLE);
 }
 
-/** Helper functions of State functions */
-
+/** \brief Makes FSM input. (FreeRTOS timer) */
 static void timeout_set(int ms){
 	xTimerStop(g_handlers.timeout_tim, 0);
 	xTimerChangePeriod(g_handlers.timeout_tim,
@@ -232,13 +253,14 @@ static void timeout_set(int ms){
 	xTimerStart(g_handlers.timeout_tim, 0);
 }
 
+/** \brief Change the reader LED's. */
 static void send_info(infos_t info){
 	xQueueSend(g_handlers.info_q,&info,0);
 	timeout_set(TIMEOUT_BASIC_MS);
 }
 
 /** \brief Change the FSM state.
- * 	Using MUTEX
+ * 	Using MUTEX.
  *  */
 static void switch_state_to( p_state_handler new_state, TickType_t wait){
 	if ( xSemaphoreTake(g_handlers.st_semaphor, wait) == pdTRUE ) {
@@ -250,10 +272,9 @@ static void switch_state_to( p_state_handler new_state, TickType_t wait){
 	}
 }
 
-/** \brief Search key and check cron.
- *  \ret 0 key is not in the database or out of the time domains
- *  \ret 1 access allow
- *
+/** \brief Search key and check its cron.
+ *  \return 0 key is not in the database or out of the time domains
+ *  \return 1 access allow
  * */
 static int key_code_lookup(uint64_t code){
 	esp_err_t ret, retval;
@@ -300,10 +321,11 @@ static int key_code_lookup(uint64_t code){
 	return retval;
 }
 
-/**
- * \brief Called when a key has been touched.
+/** \brief Called when a key has been touched.
+ *
  *  It looks up the key in the database
  * and makes a decision which input must be generated.
+ * Put an input related to the return of key_code_lookup function.
  * */
 static void key_touched_event(uint64_t code){
 	inputs_t input;
@@ -322,6 +344,7 @@ static void key_touched_event(uint64_t code){
 
 
 /** \brief Task function of iButton reader module.
+ *
  *  Checks the button state then reads the iButton reader.
  *  It ensures that the touched iButton will generate an input which type
  * depends on the key whether has a right to access or not.
@@ -384,7 +407,8 @@ static void ib_reader_task(void *pvParam){
 	}
 }
 /** \brief Outputs information for users.
- * The task waits in the blocked state until incomes a need to change information output.
+ * Blink or change the lighting LEDs on the reader.
+ * The task waits in the blocked state until incoming a command to change information output.
  *  */
 static void ib_info_task(void *pvParam){
 	infos_t info_state = blink_none;
@@ -435,6 +459,7 @@ static void ib_info_task(void *pvParam){
 	}
 }
 
+/** \brief Creates two tasks. */
 static void create_tasks(){
 
 	g_handlers.info_q = xQueueCreate(INFO_QUEUE_LENGTH,INFO_QUEUE_ITEM_SIZE);
@@ -481,14 +506,12 @@ static void gpio_set(){
 	gpio_set_pull_mode(PIN_SU_ENABLE, GPIO_PULLUP_ONLY);
 }
 
-/** \brief Get the current device name. */
+/** \brief Returns the current device name. */
 char *ib_get_device_name() {
 	return g_config.devicename;
 }
 
-
 /** \brief Starts an iButton reader module.
- *
  * */
 void start_ib_reader(){
 	if(initialized){
@@ -504,12 +527,13 @@ void start_ib_reader(){
 	initialized = 1;
 }
 
+/** \brief Is FSM in the error state? */
 int ib_waiting_for_su_touch() {
 	return (g_handlers.fsm_state == st_wait_for_clear_log) ? 1 : 0;
 }
 
 /** \brief Wait for superuser touch intervention.
- *	Bring the device into a waiting state.
+ *	Bring the device into a waiting state. Used when logfile is full.
  * */
 void ib_need_su_touch() {
 	RELAY_CLOSE;
@@ -519,14 +543,17 @@ void ib_need_su_touch() {
 	switch_state_to(st_wait_for_clear_log, portMAX_DELAY);
 }
 
+/** \brief Go back to normal operation. */
 void ib_not_need_su_touch() {
 	LED_GREEN(OFF);
 	LED_RED(ON);
 	switch_state_to(st_check_touch, portMAX_DELAY);
 }
-
-/** STATE FUNCTIONS _________________________________________________________________________*/
-
+/** ___________________________________________________________________________________________________  */
+/** @ingroup state_functions
+ *  This is a special state, when the iButton reader is turned down: All access denied.
+ *  Used in case of fatal error.
+ * */
 static void st_wait_for_clear_log(inputs_t input) {
 	switch (input) {
 		case input_su_touched:
@@ -547,6 +574,9 @@ static void st_wait_for_clear_log(inputs_t input) {
 	}
 }
 
+/** @ingroup state_functions
+ *  Open relay, access gained.
+ * */
 static void st_access_allow(inputs_t input) {
 	switch (input) {
 		case input_tout:
@@ -562,6 +592,10 @@ static void st_access_allow(inputs_t input) {
 	}
 }
 
+/** @ingroup state_functions
+ *  Access allow in bistable mode.
+ *  Any next key touch closes the relay.
+ * */
 static void st_acces_allow_bistable(inputs_t input) {
 	switch(input) {
 		case input_touched:
@@ -577,6 +611,10 @@ static void st_acces_allow_bistable(inputs_t input) {
 	}
 }
 
+/** @ingroup state_functions
+ *  Access allow in bistable mode.
+ *  Only that key will close the relay which gained access.
+ * */
 static void st_acces_allow_bistable_same_key(inputs_t input) {
 	switch(input) {
 		case input_touched:
@@ -594,6 +632,9 @@ static void st_acces_allow_bistable_same_key(inputs_t input) {
 	}
 }
 
+/** @ingroup state_functions
+ * Super user mode.
+ * */
 static void st_su_mode(inputs_t input) {
 	switch(input) {
 		case input_tout:
@@ -605,6 +646,9 @@ static void st_su_mode(inputs_t input) {
 	}
 }
 
+/** @ingroup state_functions
+ *  This state is the standard one.
+ * */
 static void st_check_touch(inputs_t input) {
 	switch(input) {
 		case input_su_touched:
@@ -660,11 +704,8 @@ static void st_check_touch(inputs_t input) {
 	}
 
 }
-
-
-
-
-
+	/** @} */
+/** @} */
 
 
 

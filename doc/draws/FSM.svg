@@ -1,0 +1,695 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   width="80.796997mm"
+   height="38.047848mm"
+   viewBox="0 0 80.796996 38.047848"
+   version="1.1"
+   id="svg8"
+   inkscape:version="0.92.4 (5da689c313, 2019-01-14)"
+   sodipodi:docname="FSM.svg"
+   inkscape:export-filename="E:\Suli\Szakdolgozat\Képek\FSM.png"
+   inkscape:export-xdpi="771.20001"
+   inkscape:export-ydpi="771.20001">
+  <defs
+     id="defs2">
+    <linearGradient
+       id="2"
+       inkscape:collect="always">
+      <stop
+         id="stop845"
+         offset="0"
+         style="stop-color:#000000;stop-opacity:1" />
+      <stop
+         id="stop847"
+         offset="1"
+         style="stop-color:#68ffff;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient
+       y2="34.068275"
+       x2="49.589962"
+       y1="55.429932"
+       x1="26.532164"
+       gradientUnits="userSpaceOnUse"
+       id="linearGradient860"
+       xlink:href="#2"
+       inkscape:collect="always" />
+    <linearGradient
+       y2="34.068275"
+       x2="49.589962"
+       y1="55.429932"
+       x1="26.532164"
+       gradientUnits="userSpaceOnUse"
+       id="linearGradient860-0"
+       xlink:href="#2"
+       inkscape:collect="always"
+       gradientTransform="translate(41.116612)" />
+    <linearGradient
+       gradientTransform="translate(-1.8952832e-6,21.25321)"
+       y2="34.068275"
+       x2="49.589962"
+       y1="55.429932"
+       x1="26.532164"
+       gradientUnits="userSpaceOnUse"
+       id="linearGradient860-01"
+       xlink:href="#2"
+       inkscape:collect="always" />
+    <linearGradient
+       y2="34.068275"
+       x2="49.589962"
+       y1="55.429932"
+       x1="26.532164"
+       gradientUnits="userSpaceOnUse"
+       id="linearGradient860-0-0"
+       xlink:href="#2"
+       inkscape:collect="always"
+       gradientTransform="translate(-25.147254,-4.9136893)" />
+    <linearGradient
+       y2="34.068275"
+       x2="49.589962"
+       y1="55.429932"
+       x1="26.532164"
+       gradientUnits="userSpaceOnUse"
+       id="linearGradient860-0-0-2"
+       xlink:href="#2"
+       inkscape:collect="always"
+       gradientTransform="translate(-25.271906,11.121356)" />
+  </defs>
+  <sodipodi:namedview
+     id="base"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageopacity="0.0"
+     inkscape:pageshadow="2"
+     inkscape:zoom="2.8"
+     inkscape:cx="90.333045"
+     inkscape:cy="55.962276"
+     inkscape:document-units="mm"
+     inkscape:current-layer="layer1-7"
+     showgrid="false"
+     inkscape:window-width="1920"
+     inkscape:window-height="1027"
+     inkscape:window-x="-8"
+     inkscape:window-y="1102"
+     inkscape:window-maximized="1"
+     inkscape:snap-bbox="true"
+     inkscape:bbox-paths="true"
+     inkscape:bbox-nodes="true"
+     inkscape:snap-bbox-edge-midpoints="true"
+     inkscape:snap-bbox-midpoints="true"
+     inkscape:object-paths="true"
+     inkscape:snap-intersection-paths="true"
+     inkscape:snap-smooth-nodes="true"
+     inkscape:snap-midpoints="true"
+     inkscape:snap-object-midpoints="true"
+     inkscape:snap-center="true"
+     inkscape:object-nodes="false" />
+  <metadata
+     id="metadata5">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title />
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-8.0297449,-26.692848)">
+    <g
+       id="layer1-7"
+       inkscape:label="Layer 1"
+       transform="translate(-2.8465667,-0.48425857)">
+      <circle
+         r="5.4243937"
+         cy="38.447357"
+         cx="45.03231"
+         id="path815"
+         style="opacity:1;fill:url(#linearGradient860);fill-opacity:1;stroke:#000000;stroke-width:0.2;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771" />
+      <text
+         id="text888"
+         y="38.316505"
+         x="40.880894"
+         style="font-style:normal;font-weight:normal;font-size:10.58333302px;line-height:0px;font-family:sans-serif;text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+         xml:space="preserve"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771"><tspan
+           id="tspan927"
+           style="font-size:3.52777767px;line-height:0px;text-align:start;text-anchor:start;stroke-width:0.26458332"
+           y="38.316505"
+           x="40.880894"
+           sodipodi:role="line"><tspan
+             style="font-size:2.82222223px;line-height:0px;text-align:start;text-anchor:start;stroke-width:0.26458332"
+             id="tspan916">check</tspan><tspan
+             id="tspan929"
+             style="font-size:2.82222223px;line-height:0px;text-align:start;text-anchor:start" /></tspan><tspan
+           id="tspan936"
+           style="font-size:3.52777767px;line-height:0px;text-align:start;text-anchor:start;stroke-width:0.26458332"
+           y="40.546509"
+           x="40.880894"
+           sodipodi:role="line"><tspan
+             id="tspan938"
+             style="font-size:2.82222223px;line-height:0px;text-align:start;text-anchor:start">touch</tspan></tspan></text>
+      <flowRoot
+         style="font-style:normal;font-weight:normal;font-size:40px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none"
+         id="flowRoot892"
+         xml:space="preserve"><flowRegion
+           id="flowRegion894"><rect
+             y="119.66254"
+             x="148.92857"
+             height="55"
+             width="116.78571"
+             id="rect896" /></flowRegion><flowPara
+           id="flowPara898" /></flowRoot>      <circle
+         r="5.4243937"
+         cy="38.447357"
+         cx="86.148918"
+         id="path815-2"
+         style="opacity:1;fill:url(#linearGradient860-0);fill-opacity:1;stroke:#000000;stroke-width:0.2;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771" />
+      <text
+         id="text888-6"
+         y="38.316505"
+         x="81.997505"
+         style="font-style:normal;font-weight:normal;font-size:10.58333302px;line-height:0px;font-family:sans-serif;text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+         xml:space="preserve"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771"><tspan
+           id="tspan936-3"
+           style="font-size:2.82222223px;line-height:2px;text-align:start;text-anchor:start;stroke-width:0.26458332"
+           y="38.316505"
+           x="81.997505"
+           sodipodi:role="line">access</tspan><tspan
+           id="tspan999"
+           style="font-size:2.82222223px;line-height:2px;text-align:start;text-anchor:start;stroke-width:0.26458332"
+           y="41.546509"
+           x="81.997505"
+           sodipodi:role="line">allow</tspan></text>
+      <path
+         inkscape:connector-curvature="0"
+         id="path1001"
+         d="m 47.84962,33.811972 c 0,0 15.240582,-11.03008 34.276239,0.996833"
+         style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771" />
+      <path
+         inkscape:connector-curvature="0"
+         id="path1007-8-6"
+         d="m 79.294995,32.021569 2.415558,2.577773 -3.380822,-1.024635"
+         style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771" />
+      <text
+         xml:space="preserve"
+         style="font-style:normal;font-weight:normal;font-size:10.58333302px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+         x="55.966385"
+         y="23.399357"
+         id="text869"><tspan
+           sodipodi:role="line"
+           id="tspan867"
+           x="55.966385"
+           y="33.054852"
+           style="stroke-width:0.26458332" /></text>
+      <text
+         xml:space="preserve"
+         style="font-style:normal;font-weight:normal;font-size:10.58333302px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+         x="52.137989"
+         y="28.461266"
+         id="text873"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771"><tspan
+           sodipodi:role="line"
+           x="52.137989"
+           y="28.461266"
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:1.76388884px;font-family:arial;-inkscape-font-specification:arial;stroke-width:0.26458332"
+           id="tspan1059">érvényes k. és mód=0 / kiengedő g.</tspan></text>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 82.025163,42.108225 c 0,0 -17.238885,7.283093 -32.540064,-0.467723"
+         id="path875"
+         inkscape:connector-curvature="0"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771" />
+      <path
+         inkscape:connector-curvature="0"
+         id="path1007-8-6-1"
+         d="m 52.4828,44.09458 -2.664483,-2.319563 3.467292,0.676557"
+         style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         inkscape:transform-center-x="-2.2159838"
+         inkscape:transform-center-y="1.3929079"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771" />
+      <text
+         xml:space="preserve"
+         style="font-style:normal;font-weight:normal;font-size:10.58333302px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+         x="59.722412"
+         y="43.972588"
+         id="text873-5"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771"><tspan
+           sodipodi:role="line"
+           id="tspan871-4"
+           x="59.722412"
+           y="43.972588"
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.11666656px;font-family:Arial;-inkscape-font-specification:Arial;stroke-width:0.26458332">időzítés lejár</tspan></text>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 41.452181,34.372223 c -3.267147,-4.194077 1.685267,-8.016195 2.954797,-1.417981"
+         id="path910"
+         inkscape:connector-curvature="0"
+         sodipodi:nodetypes="cc"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771" />
+      <path
+         inkscape:connector-curvature="0"
+         id="path1007-8-6-9"
+         d="m 44.210317,29.222461 0.171577,3.528513 -1.912848,-2.969991"
+         style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         inkscape:transform-center-x="1.1100082"
+         inkscape:transform-center-y="-2.2605991"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771" />
+      <text
+         xml:space="preserve"
+         style="font-style:normal;font-weight:normal;font-size:10.58333302px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+         x="34.684097"
+         y="28.797848"
+         id="text873-59"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771"><tspan
+           sodipodi:role="line"
+           id="tspan871-2"
+           x="34.684097"
+           y="28.797848"
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:1.76388884px;font-family:Arial;-inkscape-font-specification:Arial;stroke-width:0.26458332"
+           dx="0 0 0 0 0 0 0 0 0 0 0">érvénytelen k.</tspan></text>
+      <circle
+         r="5.4243937"
+         cy="59.700562"
+         cx="45.03231"
+         id="path815-4"
+         style="opacity:1;fill:url(#linearGradient860-01);fill-opacity:1;stroke:#000000;stroke-width:0.2;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771" />
+      <text
+         id="text888-8"
+         y="58.057808"
+         x="41.164371"
+         style="font-style:normal;font-weight:normal;font-size:10.58333302px;line-height:0px;font-family:sans-serif;text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+         xml:space="preserve"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771"><tspan
+           style="font-size:3.52777767px;line-height:1.05833328px;text-align:start;text-anchor:start;stroke-width:0.26458332"
+           y="58.057808"
+           x="41.164371"
+           sodipodi:role="line"
+           id="tspan991">wait</tspan><tspan
+           style="font-size:3.52777767px;line-height:1.05833328px;text-align:start;text-anchor:start;stroke-width:0.26458332"
+           y="60.61425"
+           x="41.164371"
+           sodipodi:role="line"
+           id="tspan995"> to</tspan><tspan
+           style="font-size:3.52777767px;line-height:1.05833328px;text-align:start;text-anchor:start;stroke-width:0.26458332"
+           y="63.170692"
+           x="41.164371"
+           sodipodi:role="line"
+           id="tspan997">clear</tspan></text>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 84.42659,43.591056 c 0,0 -6.358803,14.264539 -34.58157,13.607131"
+         id="path999"
+         inkscape:connector-curvature="0"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771" />
+      <path
+         inkscape:connector-curvature="0"
+         id="path1007-8-6-1-5"
+         d="M 53.652398,58.125115 50.24125,57.206466 53.654716,56.296463"
+         style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         inkscape:transform-center-x="-1.900647"
+         inkscape:transform-center-y="-0.084899"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771" />
+      <text
+         xml:space="preserve"
+         style="font-style:normal;font-weight:normal;font-size:10.58333302px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+         x="67.059288"
+         y="57.900284"
+         id="text873-5-7"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771"><tspan
+           sodipodi:role="line"
+           id="tspan871-4-7"
+           x="67.059288"
+           y="57.900284"
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:1.76388884px;font-family:Arial;-inkscape-font-specification:Arial;stroke-width:0.26458332">log fájl betelt</tspan></text>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 47.340712,43.356055 c 0,0 4.613235,5.112536 0.03794,11.453829"
+         id="path1034"
+         inkscape:connector-curvature="0"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771" />
+      <path
+         inkscape:connector-curvature="0"
+         id="path1007-8-6-1-5-2"
+         d="m 50.061103,52.269094 -2.586555,2.406154 1.036943,-3.377071"
+         style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         inkscape:transform-center-x="-1.3891737"
+         inkscape:transform-center-y="-1.8231713"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 42.210216,43.079833 c 0,0 -3.350733,6.100921 -0.08422,12.040619"
+         id="path1051"
+         inkscape:connector-curvature="0"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771" />
+      <path
+         inkscape:connector-curvature="0"
+         id="path1007-8-6-1-5-1"
+         d="m 40.016259,45.885554 2.153659,-2.800285 -0.464979,3.50195"
+         style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         inkscape:transform-center-x="1.0685725"
+         inkscape:transform-center-y="1.964271"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771" />
+      <text
+         xml:space="preserve"
+         style="font-style:normal;font-weight:normal;font-size:10.58333302px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+         x="49.661072"
+         y="50.007671"
+         id="text873-5-0"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771"><tspan
+           sodipodi:role="line"
+           id="tspan871-4-3"
+           x="49.661072"
+           y="50.007671"
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:1.76388884px;font-family:Arial;-inkscape-font-specification:Arial;stroke-width:0.26458332">log fájl betelt</tspan></text>
+      <text
+         xml:space="preserve"
+         style="font-style:normal;font-weight:normal;font-size:10.58333302px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+         x="29.68899"
+         y="53.551964"
+         id="text873-5-9"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771"><tspan
+           sodipodi:role="line"
+           id="tspan871-4-77"
+           x="29.68899"
+           y="53.551964"
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:1.76388884px;font-family:Arial;-inkscape-font-specification:Arial;stroke-width:0.26458332">SU kulcs érint</tspan></text>
+      <circle
+         r="5.4243937"
+         cy="33.533669"
+         cx="19.885057"
+         id="path815-2-7"
+         style="opacity:1;fill:url(#linearGradient860-0-0);fill-opacity:1;stroke:#000000;stroke-width:0.2;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771" />
+      <text
+         id="text888-6-4"
+         y="31.074915"
+         x="15.744741"
+         style="font-style:normal;font-weight:normal;font-size:10.58333302px;line-height:0px;font-family:sans-serif;text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+         xml:space="preserve"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771"><tspan
+           id="tspan936-3-8"
+           style="font-size:2.11666656px;line-height:1.20650005px;text-align:start;text-anchor:start;stroke-width:0.26458332"
+           y="31.074915"
+           x="15.744741"
+           sodipodi:role="line">access</tspan><tspan
+           id="tspan999-8"
+           style="font-size:2.11666656px;line-height:1.20650005px;text-align:start;text-anchor:start;stroke-width:0.26458332"
+           y="34.110893"
+           x="15.744741"
+           sodipodi:role="line">allow </tspan><tspan
+           style="font-size:2.11666656px;line-height:1.20650005px;text-align:start;text-anchor:start;stroke-width:0.26458332"
+           y="37.146873"
+           x="15.744741"
+           sodipodi:role="line"
+           id="tspan1021">bistable</tspan></text>
+      <circle
+         r="5.4243937"
+         cy="49.56871"
+         cx="19.760406"
+         id="path815-2-7-9"
+         style="opacity:1;fill:url(#linearGradient860-0-0-2);fill-opacity:1;stroke:#000000;stroke-width:0.2;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771" />
+      <text
+         id="text888-6-4-3"
+         y="46.796341"
+         x="16.071005"
+         style="font-style:normal;font-weight:normal;font-size:10.58333302px;line-height:0px;font-family:sans-serif;text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+         xml:space="preserve"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771"><tspan
+           id="tspan936-3-8-5"
+           style="font-size:2.11666656px;line-height:0px;text-align:start;text-anchor:start;stroke-width:0.26458332"
+           y="46.796341"
+           x="16.071005"
+           sodipodi:role="line">access</tspan><tspan
+           id="tspan999-8-2"
+           style="font-size:2.11666656px;line-height:0px;text-align:start;text-anchor:start;stroke-width:0.26458332"
+           y="49.229073"
+           x="16.071005"
+           sodipodi:role="line">allow </tspan><tspan
+           style="font-size:2.11666656px;line-height:0px;text-align:start;text-anchor:start;stroke-width:0.26458332"
+           y="51.6618"
+           x="16.071005"
+           sodipodi:role="line"
+           id="tspan1023">bistable </tspan><tspan
+           style="font-size:2.11666656px;line-height:0px;text-align:start;text-anchor:start;stroke-width:0.26458332"
+           y="54.094532"
+           x="16.071005"
+           sodipodi:role="line"
+           id="tspan1025">      2</tspan></text>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 25.153679,32.243059 c 0,0 5.687679,-1.355412 14.93499,3.97171"
+         id="path957"
+         inkscape:connector-curvature="0"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 25.21579,34.759694 c 0,0 0,0 0.50904,0.425553 1.111431,0.929145 4.815548,2.481334 14.052854,1.965626"
+         id="path959"
+         inkscape:connector-curvature="0"
+         sodipodi:nodetypes="csc"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 22.861274,44.978459 c 0,0 5.498903,-5.061525 17.428455,-3.898239"
+         id="path961"
+         inkscape:connector-curvature="0"
+         sodipodi:nodetypes="cc"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 25.212931,49.329384 c 0,0 10.688763,-1.745776 15.820127,-7.217327"
+         id="path963"
+         inkscape:connector-curvature="0"
+         sodipodi:nodetypes="cc"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771" />
+      <path
+         inkscape:connector-curvature="0"
+         id="path1007-8-6-1-5-1-8"
+         d="m 28.887896,49.91474 -3.611819,-0.582296 3.396159,-2.015209"
+         style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         inkscape:transform-center-x="-1.947927"
+         inkscape:transform-center-y="0.3010185"
+         sodipodi:nodetypes="ccc"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="M 40.181739,41.069786 37.874228,40.119511"
+         id="path967"
+         inkscape:connector-curvature="0"
+         sodipodi:nodetypes="cc"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 40.129221,41.030643 -2.245987,0.676171"
+         id="path969"
+         inkscape:connector-curvature="0"
+         sodipodi:nodetypes="cc"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 28.189904,35.389559 -2.943916,-0.586691 2.142398,2.149764"
+         id="path971"
+         inkscape:connector-curvature="0"
+         sodipodi:nodetypes="ccc"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 38.881933,34.438847 c 0,0 1.288122,1.603824 1.120535,1.726398 l -2.039274,0.02756"
+         id="path973"
+         inkscape:connector-curvature="0"
+         sodipodi:nodetypes="ccc"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771" />
+      <text
+         xml:space="preserve"
+         style="font-style:normal;font-weight:normal;font-size:10.58333302px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+         x="30.119137"
+         y="26.398746"
+         id="text873-59-3"
+         transform="rotate(8.8519259)"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771"><tspan
+           sodipodi:role="line"
+           x="30.119137"
+           y="26.398746"
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:1.76388884px;font-family:Arial;-inkscape-font-specification:Arial;stroke-width:0.26458332"
+           id="tspan1011">bármely érv. k.</tspan></text>
+      <text
+         xml:space="preserve"
+         style="font-style:normal;font-weight:normal;font-size:10.58333302px;line-height:0;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+         x="25.356668"
+         y="38.655888"
+         id="text873-59-3-7"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771"><tspan
+           sodipodi:role="line"
+           x="25.356668"
+           y="38.655888"
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:1.76388884px;line-height:0;font-family:Arial;-inkscape-font-specification:Arial;stroke-width:0.26458332"
+           id="tspan1053">érvényes k. </tspan><tspan
+           sodipodi:role="line"
+           x="25.356668"
+           y="41.2104"
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:1.76388884px;line-height:0;font-family:Arial;-inkscape-font-specification:Arial;stroke-width:0.26458332"
+           id="tspan1057"
+           dy="-1.15">és mód=1</tspan></text>
+      <text
+         xml:space="preserve"
+         style="font-style:normal;font-weight:normal;font-size:10.58333302px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+         x="7.8859839"
+         y="47.766289"
+         id="text873-59-3-7-7"
+         transform="rotate(-15.077648)"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771"><tspan
+           sodipodi:role="line"
+           id="tspan871-2-5-6-4"
+           x="7.8859839"
+           y="47.766289"
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:1.94027781px;font-family:Arial;-inkscape-font-specification:Arial;stroke-width:0.26458332">ugyanaz a k.</tspan></text>
+      <text
+         xml:space="preserve"
+         style="font-style:normal;font-weight:normal;font-size:10.58333302px;line-height:0;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+         x="8.0992765"
+         y="54.420933"
+         id="text873-59-3-7-8"
+         transform="rotate(-23.654212)"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771"><tspan
+           sodipodi:role="line"
+           x="8.0992765"
+           y="54.420933"
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:1.76388884px;line-height:0;font-family:Arial;-inkscape-font-specification:Arial;stroke-width:0.26458332"
+           id="tspan1063">érvényes k. </tspan><tspan
+           sodipodi:role="line"
+           x="8.0992765"
+           y="56.975445"
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:1.76388884px;line-height:0;font-family:Arial;-inkscape-font-specification:Arial;stroke-width:0.26458332"
+           id="tspan1067"
+           dy="-1.02">és mód=2</tspan></text>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 15.360066,36.525073 c 0,0 -19.7083311,26.542569 24.763159,25.483068"
+         id="path1069"
+         inkscape:connector-curvature="0"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 21.449718,54.723347 c 0,0 4.642387,5.265934 18.158199,4.977215"
+         id="path1071"
+         inkscape:connector-curvature="0"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="M 39.607917,59.700562 37.354827,58.44299"
+         id="path1073"
+         inkscape:connector-curvature="0"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 39.607917,59.700562 -1.985821,1.047626"
+         id="path1075"
+         inkscape:connector-curvature="0"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 37.73965,61.046303 2.188272,0.966323 -2.138782,1.174397"
+         id="path1077"
+         inkscape:connector-curvature="0"
+         sodipodi:nodetypes="ccc"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771" />
+      <text
+         xml:space="preserve"
+         style="font-style:normal;font-weight:normal;font-size:10.58333302px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+         x="30.709673"
+         y="57.316895"
+         id="text873-5-7-4"
+         transform="rotate(10.317382)"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771"><tspan
+           sodipodi:role="line"
+           id="tspan871-4-7-6"
+           x="30.709673"
+           y="57.316895"
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:1.76388884px;font-family:Arial;-inkscape-font-specification:Arial;stroke-width:0.26458332">log fájl betelt</tspan></text>
+      <text
+         xml:space="preserve"
+         style="font-style:normal;font-weight:normal;font-size:10.58333302px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+         x="36.069923"
+         y="51.719471"
+         id="text873-5-7-4-0"
+         transform="rotate(10.317382)"
+         inkscape:export-xdpi="771"
+         inkscape:export-ydpi="771"><tspan
+           sodipodi:role="line"
+           id="tspan871-4-7-6-9"
+           x="36.069923"
+           y="51.719471"
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:1.76388884px;font-family:Arial;-inkscape-font-specification:Arial;stroke-width:0.26458332">log fájl betelt</tspan></text>
+    </g>
+  </g>
+</svg>

@@ -1,8 +1,10 @@
-/*
+/**
  * ib_log.c
  *
  *  Created on: Apr 9, 2019
  *      Author: root
+ *  @ingroup ib_log
+ *  @{
  */
 
 
@@ -36,6 +38,8 @@
 #define TAG 			"iB_logger"
 
 #define TESTMODE
+
+/** \brief Deepness of log message queue. */
 #define QUEUE_DEPTH		10
 
 extern EventGroupHandle_t wifi_event_group;
@@ -44,15 +48,23 @@ extern EventGroupHandle_t ib_sntp_event_group;
 
 volatile uint8_t ib_log_initialized = 0;
 
+/** \brief Message queue handler. */
 QueueHandle_t g_queue;
 
 /** \brief Post a log message.
  * 	\param msg Message to be sent
+ * 	Only adds a new ib_log_t type element in the queue then returns.
  * */
 void ib_log_post(ib_log_t *msg) {
 	xQueueSend(g_queue, msg, 0);
 }
 
+/** \brief Make JSON message from ib_log_t.
+ *  Log message schema.
+ *  \param logmsg will be converted to its JSON counterpart
+ *  \return a JSON object
+ *  \return NULL if JSON object cannot be created
+ *  */
 cJSON *create_json_msg(ib_log_t *logmsg) {
 
 	cJSON *time_j = NULL;
@@ -128,6 +140,10 @@ end:
 	return NULL;
 }
 
+/** \brief Append log message to file.
+ * \param data Can be any strings, printed JSON mostly
+ * \param len datalength
+ */
 void save_to_flash(char *data, size_t len) {
 	esp_err_t ret;
 	ret = ibd_log_append_file(data, &len);
@@ -137,8 +153,9 @@ void save_to_flash(char *data, size_t len) {
 }
 
 /** \brief JSON log info sender.
- * 	Send the JSON object waiting in queue or flash.
- * */
+ *	Send the JSON object waiting in queue or flash.
+ * 	This task falls asleep when there are no element in g_queue.
+ */
 static void logsender_task() {
 	ib_log_t msg;
 	cJSON *msg_json = NULL;
@@ -169,6 +186,8 @@ static void logsender_task() {
 	}
 }
 
+/** Wait for WiFi and SNTP. The create task, and send system up log message.
+ * */
 void ib_log_init() {
 	if ( ib_log_initialized ) {
 		ESP_LOGW(TAG,"Already initialized");
@@ -202,7 +221,7 @@ void ib_log_init() {
 	ESP_LOGI(TAG, "Initialized");
 	ib_log_initialized = 1;
 }
-
+/** @} */
 
 
 
