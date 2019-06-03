@@ -83,10 +83,6 @@ constrain(int num, constraint *limit)
     return (num >= limit->min) || (num <= limit->max);
 }
 
-
-static int logicalline;
-
-
 /** Pick a number off the front of a string, validate it,
  * and repoint the string to after the number.
  */

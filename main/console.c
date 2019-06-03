@@ -17,6 +17,8 @@
 #include "cmd_decl.h"
 #include "nvs.h"
 #include "nvs_flash.h"
+#include "driver/gpio.h"
+
 
 #include "console.h"
 
@@ -33,7 +35,7 @@ void wifi_get_data(){
 	}
 }
 
-TaskFunction_t cmd_task(){
+void cmd_task(){
 
     const char* prompt = LOG_COLOR_I "esp32> " LOG_RESET_COLOR;
 
@@ -86,7 +88,7 @@ TaskFunction_t cmd_task(){
 }
 
 void start_console(){
-	int i = 0;
+
 	TaskHandle_t cmd_handler;
 	const char task_name[] = "cmd task";
 

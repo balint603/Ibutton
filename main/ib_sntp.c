@@ -21,8 +21,8 @@
 #include "lwip/sockets.h"
 #include "sdkconfig.h"
 #include "lwip/err.h"
-#include "/home/major/Documents/ESP32/ESP-IDF/IDF/components/lwip/include/lwip/apps/sntp/sntp.h"
-#include "/home/major/Documents/ESP32/ESP-IDF/IDF/components/lwip/include/lwip/lwip/ip_addr.h"
+#include "apps/sntp/sntp.h"
+#include "lwip/ip_addr.h"
 
 #include "ib_reader.h"	// Set esp time
 
@@ -53,7 +53,7 @@ esp_err_t ib_sntp_set_ntp_server(const char *name){
 	if(!name || (strlen(name)) >= SERVER_NAME_MAX_SIZE)
 		return ESP_ERR_INVALID_ARG;
 	strcpy(g_user_defined_server, name);
-	g_chosen_server_name = g_user_defined_server;
+	g_chosen_server_name = (char*)g_user_defined_server;
 	return ESP_OK;
 }
 /**
@@ -62,7 +62,7 @@ esp_err_t ib_sntp_set_ntp_server(const char *name){
  * */
 static int choose_another_server(){
 	if(++g_current_server_index < SERVER_NAMES_N){
-		g_chosen_server_name = SERVER_NAMES[g_current_server_index];
+		g_chosen_server_name = (char*)SERVER_NAMES[g_current_server_index];
 		return 0;
 	}
 	ESP_LOGW(__func__,"No more NTP server domains to try.\n");
@@ -111,9 +111,9 @@ void ib_sntp_obtain_time(){
 	sntp_stop();
 	sntp_setoperatingmode(SNTP_OPMODE_POLL);
 	if(g_chosen_server_name == NULL)
-		g_chosen_server_name = SERVER_NAMES[0];
+		g_chosen_server_name = (char*)SERVER_NAMES[0];
 	//sntp_setserver(idx, addr)
-	sntp_setservername(0, g_chosen_server_name);
+	sntp_setservername(0, (char*)g_chosen_server_name);
 	sntp_init();
 	ib_sntp_event_group = xEventGroupCreate();
 	TaskHandle_t obtain_time_task_h;	// Listener task, decide the time is successfully set or not

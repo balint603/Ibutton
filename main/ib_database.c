@@ -128,7 +128,7 @@ esp_err_t ibd_log_append_file(char *data, size_t *data_length) {
 	const size_t len = *data_length;
 	const size_t fsize = get_file_size(fptr);
 	size_t free_space = IBD_LOG_FILE_SIZE - fsize;
-	size_t n_chars;
+
 	if ( fsize > IBD_LOG_FILE_CRITICAL ) {
 		ret = IBD_ERR_CRITICAL_SIZE;
 	}
