@@ -1,11 +1,17 @@
-ESP-IDF template app
+    iButton access control 
 ====================
 
-This is a template application to be used with [Espressif IoT Development Framework](https://github.com/espressif/esp-idf).
+ iButton Access Control project
 
-Please check [ESP-IDF docs](https://docs.espressif.com/projects/esp-idf/en/latest/get-started/index.html) for getting started instructions.
+    About this project
+ This software is developed on ESP32 (Espressif) device. \n
+ The task of this project is to create an online access control device.
+ The authentication is realized with iButton (Maxim Integrated) keys and can be restrict in time.
+ It means that the device only allows access when the given person's key can be found in the local database
+ and the time restriction setting - belongs to each person - matches the current time.
 
-*Code in this repository is in the Public Domain (or CC0 licensed, at your option.)
-Unless required by applicable law or agreed to in writing, this
-software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-CONDITIONS OF ANY KIND, either express or implied.*
+ Time descriptor are based on (UNIX) crontab and used to store time settings related to each keys.
+ This device works with a local database stored in flash memory. It consists of key-cron entries.
+ 
+    Architecture: ESP32\n
+    Used framework: ESP-IDF V3.0
